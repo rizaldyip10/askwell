@@ -83,7 +83,7 @@ export function Demo() {
             </ul>
 
             <div className="border-t border-glass-line p-3">
-              <div className="flex items-center gap-2 rounded-pill border border-glass-line bg-glass px-4 py-2 text-sm text-fg-subtle">
+              <div className="flex items-center gap-2 rounded-pill border border-glass-line bg-glass px-4 py-2 text-sm text-fg-muted">
                 <span className="flex-1 truncate">Ask a question…</span>
                 <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-pill bg-primary text-primary-fg">
                   ↑
