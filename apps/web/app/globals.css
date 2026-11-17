@@ -121,6 +121,11 @@
     color: var(--color-fg);
     font-family: var(--font-sans);
   }
+  /* Dark pages: paint the body too, so overscroll / short pages show no light strip. */
+  body:has(> .theme-dark) {
+    background-color: var(--color-black);
+    color-scheme: dark;
+  }
 }
 
 /*
