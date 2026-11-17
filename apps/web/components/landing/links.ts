@@ -1,3 +1,3 @@
-/** Sign-up route. Exists once B2 (Clerk) merges; 404 until then. */
+/** Clerk sign-up page. */
 export const SIGN_UP_HREF = "/sign-up";
 export const START_FREE_LABEL = "Start free";
