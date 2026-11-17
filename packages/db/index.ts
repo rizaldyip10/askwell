@@ -1,2 +1,12 @@
-// Generated Supabase types and the pglite test helper arrive in Phase 1 (Lane A).
-export {};
+// Generated Supabase types (packages/db/types.ts). Regenerate with `pnpm db:types`
+// (or the Supabase MCP's type generator); never edit types.ts by hand.
+export type {
+  CompositeTypes,
+  Database,
+  Enums,
+  Json,
+  Tables,
+  TablesInsert,
+  TablesUpdate,
+} from "./types";
+export { Constants } from "./types";
