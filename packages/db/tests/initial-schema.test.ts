@@ -270,6 +270,15 @@ describe("authenticated writes", () => {
     expect(counts).toEqual([{ project_id: ID.projectB, n: 5 }]);
   });
 
+  it("rejects a chunk whose project differs from its source's project", async () => {
+    await expect(
+      db.asService(
+        `insert into public.knowledge_chunks (project_id, source_id, content, embedding)
+         values ('${ID.projectA}', '${ID.sourceB}', 'mismatch', ${EMBEDDING})`,
+      ),
+    ).rejects.toThrow(/violates foreign key constraint/);
+  });
+
   it("deleting a source deletes its chunks", async () => {
     const remaining = await db.as("service_role", {}, async (tx) => {
       await tx.query(`delete from public.knowledge_sources where id = $1`, [ID.sourceA]);
