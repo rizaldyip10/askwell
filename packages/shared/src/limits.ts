@@ -5,7 +5,7 @@ export const MESSAGE_MAX_LENGTH = 1000;
 /** Pasted knowledge text, in characters. */
 export const KNOWLEDGE_TEXT_MAX_LENGTH = 50_000;
 /** Uploaded knowledge file, in bytes (10 MB). The Storage bucket enforces the same limit. */
-export const KNOWLEDGE_FILE_MAX_BYTES = 10 * 1024 * 1024;
+export const MAX_KNOWLEDGE_FILE_BYTES = 10 * 1024 * 1024;
 
 export const PROJECT_NAME_MAX_LENGTH = 60;
 export const KNOWLEDGE_TITLE_MAX_LENGTH = 200;

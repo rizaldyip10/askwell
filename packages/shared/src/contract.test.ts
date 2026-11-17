@@ -6,7 +6,7 @@ import {
   finalizeKnowledgeRequestSchema,
   idParamsSchema,
   KNOWLEDGE_ALLOWED_MIME_TYPES,
-  KNOWLEDGE_FILE_MAX_BYTES,
+  MAX_KNOWLEDGE_FILE_BYTES,
   KNOWLEDGE_TEXT_MAX_LENGTH,
   knowledgeFileTypeFromName,
   knowledgeUploadUrlRequestSchema,
@@ -41,7 +41,7 @@ describe("input limits", () => {
   it("has the product owner's values", () => {
     expect(MESSAGE_MAX_LENGTH).toBe(1000);
     expect(KNOWLEDGE_TEXT_MAX_LENGTH).toBe(50_000);
-    expect(KNOWLEDGE_FILE_MAX_BYTES).toBe(10 * 1024 * 1024);
+    expect(MAX_KNOWLEDGE_FILE_BYTES).toBe(10 * 1024 * 1024);
   });
 });
 
@@ -147,7 +147,7 @@ describe("knowledge requests", () => {
   });
 
   it("accepts an allowed file up to 10 MB", () => {
-    expect(knowledgeUploadUrlRequestSchema.safeParse({ fileName: "guide.pdf", size: KNOWLEDGE_FILE_MAX_BYTES }).success).toBe(true);
+    expect(knowledgeUploadUrlRequestSchema.safeParse({ fileName: "guide.pdf", size: MAX_KNOWLEDGE_FILE_BYTES }).success).toBe(true);
     expect(knowledgeUploadUrlRequestSchema.safeParse({ fileName: "notes.md", size: 1 }).success).toBe(true);
   });
 
@@ -157,7 +157,7 @@ describe("knowledge requests", () => {
   });
 
   it("rejects an oversize, empty or fractional file size", () => {
-    expect(knowledgeUploadUrlRequestSchema.safeParse({ fileName: "guide.pdf", size: KNOWLEDGE_FILE_MAX_BYTES + 1 }).success).toBe(false);
+    expect(knowledgeUploadUrlRequestSchema.safeParse({ fileName: "guide.pdf", size: MAX_KNOWLEDGE_FILE_BYTES + 1 }).success).toBe(false);
     expect(knowledgeUploadUrlRequestSchema.safeParse({ fileName: "guide.pdf", size: 0 }).success).toBe(false);
     expect(knowledgeUploadUrlRequestSchema.safeParse({ fileName: "guide.pdf", size: 1.5 }).success).toBe(false);
   });

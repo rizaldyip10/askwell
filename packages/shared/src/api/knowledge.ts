@@ -3,7 +3,7 @@
 import { z } from "zod";
 import type { KnowledgeSource } from "../domain";
 import {
-  KNOWLEDGE_FILE_MAX_BYTES,
+  MAX_KNOWLEDGE_FILE_BYTES,
   KNOWLEDGE_FILE_NAME_MAX_LENGTH,
   KNOWLEDGE_TEXT_MAX_LENGTH,
   KNOWLEDGE_TITLE_MAX_LENGTH,
@@ -31,7 +31,7 @@ export const knowledgeUploadUrlRequestSchema = z.strictObject({
     .min(1)
     .max(KNOWLEDGE_FILE_NAME_MAX_LENGTH)
     .refine((name) => knowledgeFileTypeFromName(name) !== null, "File type must be PDF, Markdown or TXT"),
-  size: z.number().int().positive().max(KNOWLEDGE_FILE_MAX_BYTES, "File is larger than 10 MB"),
+  size: z.number().int().positive().max(MAX_KNOWLEDGE_FILE_BYTES, "File is larger than 10 MB"),
 });
 export type KnowledgeUploadUrlRequest = z.infer<typeof knowledgeUploadUrlRequestSchema>;
 /**
