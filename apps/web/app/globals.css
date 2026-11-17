@@ -91,8 +91,9 @@
     inset 0 1px 0 0 color-mix(in oklab, var(--color-white) 80%, transparent),
     0 12px 32px -12px color-mix(in oklab, var(--color-black) 18%, transparent);
   --glow-shadow: 0 0 0 1px var(--glass-line);
-  /* Page scrollbar: a subtle gray thumb over the canvas. */
-  --scrollbar-thumb: var(--color-gray-300);
+  /* Page scrollbar: a gray thumb over the canvas. Between gray-400 and gray-500: ≥3:1 on the
+     gray-50 canvas (CSS Scrollbars spec / WCAG 1.4.11), the subtlest shade that passes. */
+  --scrollbar-thumb: color-mix(in oklab, var(--color-gray-400) 50%, var(--color-gray-500));
   --scrollbar-track: transparent;
 }
 
@@ -118,8 +119,9 @@ html:has(> body > .theme-dark) {
     inset 0 1px 0 0 color-mix(in oklab, var(--color-white) 10%, transparent),
     0 24px 48px -16px color-mix(in oklab, var(--color-black) 70%, transparent);
   --glow-shadow: 0 0 80px -20px color-mix(in oklab, var(--color-white) 35%, transparent);
-  /* Page scrollbar: a dark-gray thumb on a black track. */
-  --scrollbar-thumb: var(--color-gray-700);
+  /* Page scrollbar: a dark-gray thumb on a black track. Between gray-600 and gray-500: ≥3:1 on
+     black, the dimmest shade that passes. */
+  --scrollbar-thumb: color-mix(in oklab, var(--color-gray-600) 50%, var(--color-gray-500));
   --scrollbar-track: var(--color-black);
   color-scheme: dark;
 }
