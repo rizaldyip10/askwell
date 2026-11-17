@@ -10,6 +10,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint",
     "test": "pnpm -r --if-present test",
-    "build": "pnpm -r --if-present build"
+    "build": "pnpm -r --if-present build",
+    "db:types": "pnpm --silent dlx supabase@3.1.0 gen types typescript --remote=\"$SUPABASE_PROJECT_REF\" --schema public --agent=no > packages/db/types.ts.tmp && mv packages/db/types.ts.tmp packages/db/types.ts || { rm -f packages/db/types.ts.tmp; exit 1; }"
   }
 }
