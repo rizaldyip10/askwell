@@ -91,10 +91,17 @@
     inset 0 1px 0 0 color-mix(in oklab, var(--color-white) 80%, transparent),
     0 12px 32px -12px color-mix(in oklab, var(--color-black) 18%, transparent);
   --glow-shadow: 0 0 0 1px var(--glass-line);
+  /* Page scrollbar: a subtle gray thumb over the canvas. */
+  --scrollbar-thumb: var(--color-gray-300);
+  --scrollbar-track: transparent;
 }
 
-/* Dark (landing). */
-.theme-dark {
+/*
+ * Dark (landing). Also applied to <html> on dark pages: browsers color the page
+ * scrollbar from the root element, so it needs the dark tokens and color-scheme too.
+ */
+.theme-dark,
+html:has(> body > .theme-dark) {
   --canvas: var(--color-black);
   --fg: var(--color-white);
   --fg-muted: var(--color-gray-400);
@@ -111,12 +118,20 @@
     inset 0 1px 0 0 color-mix(in oklab, var(--color-white) 10%, transparent),
     0 24px 48px -16px color-mix(in oklab, var(--color-black) 70%, transparent);
   --glow-shadow: 0 0 80px -20px color-mix(in oklab, var(--color-white) 35%, transparent);
+  /* Page scrollbar: a dark-gray thumb on a black track. */
+  --scrollbar-thumb: var(--color-gray-700);
+  --scrollbar-track: var(--color-black);
   color-scheme: dark;
 }
 
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* Color only: no width or gutter change. */
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+  html:has(> body > .theme-dark) {
+    background-color: var(--color-black);
   }
   body {
     background-color: var(--color-canvas);
