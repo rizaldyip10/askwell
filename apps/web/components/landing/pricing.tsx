@@ -1,3 +1,4 @@
+import { PLANS, PLAN_LIMITS, type Plan } from "@askwell/shared";
 import { Badge } from "../ui/badge";
 import { ButtonLink } from "../ui/button";
 import { cn } from "../ui/cn";
@@ -5,7 +6,6 @@ import { Container } from "../ui/container";
 import { GlassPanel } from "../ui/glass-panel";
 import { SectionHeading } from "../ui/section-heading";
 import { SIGN_UP_HREF, START_FREE_LABEL } from "./links";
-import { PLANS, PLAN_LIMITS, type Plan } from "./plan-limits.mock";
 import { PRICING_ROWS } from "./pricing-rows";
 
 const PLAN_COPY: Record<Plan, { name: string; tagline: string; cta: string }> = {

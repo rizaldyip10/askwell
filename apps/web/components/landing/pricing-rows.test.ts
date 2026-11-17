@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLAN_LIMITS } from "./plan-limits.mock";
+import { PLAN_LIMITS } from "@askwell/shared";
 import { PRICING_ROWS, formatCount } from "./pricing-rows";
 
 const table = (plan: keyof typeof PLAN_LIMITS) =>

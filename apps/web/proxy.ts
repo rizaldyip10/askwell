@@ -1,0 +1,32 @@
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import type { ApiError } from "@askwell/shared";
+import { NextResponse } from "next/server";
+import { SIGN_IN_PATH, SIGN_UP_PATH, routeAccess } from "./lib/auth/routes";
+
+// Clerk reads the session on every matched request. Owner pages and owner API
+// routes are gated here first; each page and handler still checks for itself.
+export default clerkMiddleware(async (auth, req) => {
+  const access = routeAccess(req.nextUrl.pathname);
+  if (access === "public") return;
+
+  if (access === "protected-api") {
+    const { isAuthenticated } = await auth();
+    if (!isAuthenticated) {
+      const body: ApiError = { error: { code: "unauthorized", message: "Sign in required." } };
+      return NextResponse.json(body, { status: 401 });
+    }
+    return;
+  }
+
+  // Pages: redirect a signed-out visitor to sign-in.
+  await auth.protect();
+}, { signInUrl: SIGN_IN_PATH, signUpUrl: SIGN_UP_PATH });
+
+export const config = {
+  matcher: [
+    // Skip Next.js internals and static files, unless found in search params.
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // Always run for API routes.
+    "/(api|trpc)(.*)",
+  ],
+};

@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { APP_NAME } from "@askwell/shared";
-import { PLANS, PLAN_LIMITS } from "../components/landing/plan-limits.mock";
+import { APP_NAME, PLANS, PLAN_LIMITS } from "@askwell/shared";
 import { PRICING_ROWS } from "../components/landing/pricing-rows";
 import Home from "./page";
 
