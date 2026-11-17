@@ -78,7 +78,8 @@
   --canvas: var(--color-gray-50);
   --fg: var(--color-gray-950);
   --fg-muted: var(--color-gray-600);
-  --fg-subtle: var(--color-gray-400);
+  /* gray-500: ≥4.5:1 on the gray-50 canvas. */
+  --fg-subtle: var(--color-gray-500);
   --line: var(--color-gray-200);
   --glass: color-mix(in oklab, var(--color-white) 65%, transparent);
   --glass-strong: color-mix(in oklab, var(--color-white) 85%, transparent);
@@ -97,7 +98,8 @@
   --canvas: var(--color-black);
   --fg: var(--color-white);
   --fg-muted: var(--color-gray-400);
-  --fg-subtle: var(--color-gray-500);
+  /* Between gray-400 and gray-500: ≥4.5:1 on black and on glass, still dimmer than --fg-muted. */
+  --fg-subtle: color-mix(in oklab, var(--color-gray-400) 50%, var(--color-gray-500));
   --line: var(--color-gray-800);
   --glass: color-mix(in oklab, var(--color-white) 5%, transparent);
   --glass-strong: color-mix(in oklab, var(--color-white) 10%, transparent);
