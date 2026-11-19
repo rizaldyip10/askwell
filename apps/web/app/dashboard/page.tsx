@@ -1,29 +1,26 @@
 import { auth } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
-import { EmptyState } from "../../components/dashboard/empty-state";
 import { PageHeader } from "../../components/dashboard/page-header";
-import { Button } from "../../components/ui/button";
+import { ProjectsView } from "../../components/projects/projects-view";
+import { toProject } from "../../lib/projects/to-project";
+import { createOwnerClient } from "../../lib/supabase/owner";
 
 export const metadata: Metadata = { title: "Projects" };
 
 export default async function ProjectsPage() {
   await auth.protect();
 
+  // Owner client: RLS returns only this owner's projects (§9). A failure shows dashboard/error.tsx.
+  const { data, error } = await createOwnerClient()
+    .from("projects")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`Couldn't load projects: ${error.message}`, { cause: error });
+
   return (
     <>
       <PageHeader title="Projects" description="Each project is one chat widget for one website." />
-      <EmptyState
-        title="No projects yet"
-        description="Create a project, add what your bot should know, then paste one script tag into your site."
-        action={
-          <Button disabled aria-describedby="new-project-soon">
-            New project
-            <span id="new-project-soon" className="text-xs font-normal opacity-80">
-              (coming soon)
-            </span>
-          </Button>
-        }
-      />
+      <ProjectsView projects={data.map(toProject)} />
     </>
   );
 }

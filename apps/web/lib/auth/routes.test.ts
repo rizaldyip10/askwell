@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { isProtectedRoute, matchesPrefix, normalizePath, routeAccess } from "./routes";
+import {
+  isProtectedRoute,
+  matchesPrefix,
+  normalizePath,
+  projectIdFromPath,
+  projectPath,
+  projectSectionPath,
+  routeAccess,
+} from "./routes";
 
 describe("routeAccess", () => {
   it.each([
@@ -55,5 +63,29 @@ describe("helpers", () => {
     expect(normalizePath("/")).toBe("/");
     expect(normalizePath("//")).toBe("/");
     expect(normalizePath("/A/b//")).toBe("/a/b");
+  });
+});
+
+describe("project paths", () => {
+  const ID = "6f1c2a4e-8b3d-4c5e-9f7a-1b2c3d4e5f60";
+
+  it("builds project and section paths", () => {
+    expect(projectPath(ID)).toBe(`/dashboard/projects/${ID}`);
+    expect(projectSectionPath(ID, "")).toBe(`/dashboard/projects/${ID}`);
+    expect(projectSectionPath(ID, "install")).toBe(`/dashboard/projects/${ID}/install`);
+    expect(projectPath("a/b")).toBe("/dashboard/projects/a%2Fb");
+  });
+
+  it("reads the project id from a path under a project", () => {
+    expect(projectIdFromPath(`/dashboard/projects/${ID}`)).toBe(ID);
+    expect(projectIdFromPath(`/dashboard/projects/${ID}/install`)).toBe(ID);
+    expect(projectIdFromPath(`/dashboard/projects/${ID}/knowledge/x`)).toBe(ID);
+  });
+
+  it("returns null outside a project", () => {
+    for (const path of ["/dashboard", "/dashboard/billing", "/dashboard/projects", "/dashboard/projects/", "/dashboard/projectsx/1", "/"]) {
+      expect(projectIdFromPath(path), path).toBeNull();
+    }
+    expect(projectIdFromPath("/dashboard/projects/%E0%A4%A")).toBeNull();
   });
 });
