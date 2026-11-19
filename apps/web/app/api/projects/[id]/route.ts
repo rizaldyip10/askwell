@@ -1,6 +1,8 @@
 // PATCH /api/projects/:id (rename), DELETE /api/projects/:id (project.md §6.3, §8 Owner).
 // Both go through the owner client: RLS lets an owner rename (name only) and delete only
 // their own projects, so "not theirs" and "missing" both come back as no row → 404.
+// DELETE also removes the project's knowledge files from Storage, which the row cascade
+// can't reach (§6.4, §9 File upload).
 
 import {
   idParamsSchema,
@@ -18,6 +20,10 @@ import {
 } from "../../../../lib/projects/http";
 import { toProject } from "../../../../lib/projects/to-project";
 import { createOwnerClient } from "../../../../lib/supabase/owner";
+import { createServiceClient } from "../../../../lib/supabase/service";
+
+/** The private Storage bucket for knowledge files (created by the knowledge migration). */
+const KNOWLEDGE_BUCKET = "knowledge";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -66,15 +72,45 @@ export async function DELETE(_request: Request, context: Context): Promise<Respo
   if (!id) return invalidId();
 
   try {
-    // The widget config, knowledge and conversations cascade.
-    const { data, error } = await createOwnerClient().from("projects").delete().eq("id", id).select("id");
+    const owner = createOwnerClient();
+
+    // 1. The project's file keys, read through the owner client: RLS returns none for
+    //    another owner's project. Pasted text has no file (null key).
+    const { data: files, error: filesError } = await owner
+      .from("knowledge_sources")
+      .select("storage_key")
+      .eq("project_id", id)
+      .not("storage_key", "is", null);
+    if (filesError) throw new Error(filesError.message, { cause: filesError });
+    const keys = files.flatMap((f) => (f.storage_key ? [f.storage_key] : []));
+
+    // 2. Delete the project. The widget config, knowledge rows and conversations cascade.
+    const { data, error } = await owner.from("projects").delete().eq("id", id).select("id");
     if (error) throw new Error(error.message, { cause: error });
     if (data.length === 0) return notFound();
+
+    // 3. Only now, with ownership proven by the delete: remove the files (service client,
+    //    one batch, best effort). The project is gone either way, so a failure is logged
+    //    (count and project id only, never file names) and the delete still succeeds.
+    if (keys.length > 0) await removeProjectFiles(id, keys);
 
     const body: DeleteProjectResponse = { ok: true };
     return Response.json(body);
   } catch (error) {
     console.error("[projects] delete failed", { userId, id, error });
     return internalError();
+  }
+}
+
+async function removeProjectFiles(projectId: string, keys: string[]): Promise<void> {
+  try {
+    const { error } = await createServiceClient().storage.from(KNOWLEDGE_BUCKET).remove(keys);
+    if (error) throw error;
+  } catch (error) {
+    console.error("[projects] delete: removing knowledge files failed", {
+      projectId,
+      fileCount: keys.length,
+      error: error instanceof Error ? error.name : "unknown",
+    });
   }
 }
