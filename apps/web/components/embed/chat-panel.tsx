@@ -2,9 +2,9 @@
 
 import { APP_NAME, MESSAGE_MAX_LENGTH, type WidgetConfig } from "@askwell/shared";
 import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
-import { chatErrorMessage, sendChatMessage } from "../../lib/embed/chat-client";
 import { chatReducer, INITIAL_CHAT_STATE } from "../../lib/embed/chat-state";
 import { closeOnEscape, postToHost } from "../../lib/embed/messaging";
+import { sendVisitorMessage } from "../../lib/embed/send";
 import { getVisitorId } from "../../lib/embed/visitor-id";
 import { MessageBubble, TypingIndicator } from "./message-bubble";
 import { usePanelHidden } from "./use-panel-hidden";
@@ -57,22 +57,17 @@ export function ChatPanel({ config, publicKey, origin }: ChatPanelProps) {
     const text = draft.trim();
     if (!text || state.waiting) return;
     setDraft("");
-    dispatch({ type: "sent", id: crypto.randomUUID(), text });
-    try {
-      const res = await sendChatMessage({
-        key: publicKey,
-        visitorId: getVisitorId(),
-        conversationId: state.conversationId,
-        message: text,
-      });
-      dispatch({ type: "replied", id: crypto.randomUUID(), text: res.reply, conversationId: res.conversationId });
-      if (hidden.current) {
-        unread.current += 1;
-        postToHost(window.parent, origin, { type: "askwell:unread", count: unread.current });
-      }
-    } catch (error) {
-      dispatch({ type: "failed", id: crypto.randomUUID(), text: chatErrorMessage(error) });
+    const result = await sendVisitorMessage(
+      { text, publicKey, visitorId: getVisitorId(), conversationId: state.conversationId },
+      dispatch,
+    );
+    if (!result.ok) {
       setDraft((current) => current || text);
+      return;
+    }
+    if (hidden.current) {
+      unread.current += 1;
+      postToHost(window.parent, origin, { type: "askwell:unread", count: unread.current });
     }
   }
 
