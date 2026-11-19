@@ -9,6 +9,9 @@ vi.mock("./arcjet", () => ({
   widgetChatArcjet: { protect: chatProtect },
 }));
 
+const onBlocked = vi.fn();
+vi.mock("./blocked", () => ({ onBlocked }));
+
 const widget = await import("./widget");
 const { PROTECT_TIMEOUT_MS, protectWidgetChat, protectWidgetConfig } = widget;
 
@@ -33,6 +36,7 @@ let log: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   configProtect.mockReset();
   chatProtect.mockReset();
+  onBlocked.mockReset();
   log = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -50,6 +54,12 @@ describe("protectWidgetConfig", () => {
   it("blocks with rate_limit when the rate limit denies", async () => {
     configProtect.mockResolvedValue(decision("rate_limit"));
     expect(await protectWidgetConfig(req(), { publicKey: KEY })).toEqual({ allowed: false, reason: "rate_limit" });
+  });
+
+  it("does not call onBlocked: message_blocked is a chat event", async () => {
+    configProtect.mockResolvedValue(decision("rate_limit"));
+    await protectWidgetConfig(req(), { publicKey: KEY });
+    expect(onBlocked).not.toHaveBeenCalled();
   });
 });
 
@@ -73,8 +83,23 @@ describe("protectWidgetChat", () => {
     expect(JSON.stringify(log.mock.calls)).not.toContain("secret visitor text");
   });
 
-  it("onBlocked is a no-op hook for Phase 4", () => {
-    expect(widget.onBlocked("injection", KEY)).toBeUndefined();
+  it("calls onBlocked with the reason and public key only", async () => {
+    chatProtect.mockResolvedValueOnce(decision("injection"));
+    await protectWidgetChat(req(), { publicKey: KEY, message: "secret visitor text" });
+    chatProtect.mockResolvedValueOnce(decision("rate_limit"));
+    await protectWidgetChat(req(), { publicKey: KEY, message: "secret visitor text" });
+    expect(onBlocked.mock.calls).toEqual([
+      ["injection", KEY],
+      ["rate_limit", KEY],
+    ]);
+  });
+
+  it("does not call onBlocked when allowed or failing open", async () => {
+    chatProtect.mockResolvedValueOnce(decision("allow"));
+    await protectWidgetChat(req(), { publicKey: KEY, message: "x" });
+    chatProtect.mockResolvedValueOnce(decision("error"));
+    await protectWidgetChat(req(), { publicKey: KEY, message: "x" });
+    expect(onBlocked).not.toHaveBeenCalled();
   });
 });
 
