@@ -24,13 +24,12 @@ The widget only proves itself on a page from **another origin**, the way a custo
    ```
 3. **Get past preview protection.** Previews need `x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET`
    on every request to the preview. A normal browser can't add headers to a third-party `<script>` or
-   `<iframe>`, so use one of these:
-   - **Playwright** (recommended): `context.route("<preview>/**", r => r.continue({ headers: { ...r.request().headers(), "x-vercel-protection-bypass": secret } }))`.
+   `<iframe>`, so drive the browser with Playwright:
+   - `context.route("<preview>/**", r => r.continue({ headers: { ...r.request().headers(), "x-vercel-protection-bypass": secret } }))`.
      It adds the header to the script, the config fetch and the `/embed` iframe.
-   - **Bypass cookie:** open `<preview>/embed` once with `x-vercel-protection-bypass` and
-     `x-vercel-set-bypass-cookie: samesitenone`. The cookie then works inside the third-party iframe.
-     Send `x-vercel-set-bypass-cookie` only on that one document request: on every request it makes
-     Vercel redirect in a loop (`ERR_TOO_MANY_REDIRECTS`).
+   - Don't rely on `x-vercel-set-bypass-cookie: samesitenone` for the `/embed` iframe. Vercel answers with a
+     307 that sets the cookie, but a browser that blocks third-party cookies (Chromium does) never stores it,
+     so the iframe redirects in a loop (`307` → `307` → …). The header on every request needs no cookie.
 4. **Check:**
    - The button appears bottom right ("Ask us", black by default).
    - Click → the panel opens with the project's header and, on Free, "Powered by Askwell".
