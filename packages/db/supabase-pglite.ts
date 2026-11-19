@@ -5,6 +5,7 @@
 //   - the `anon`, `authenticated` and `service_role` roles (service_role bypasses RLS)
 //   - the `extensions` schema, with pgvector available
 //   - `auth.jwt()`, reading the `request.jwt.claims` setting like PostgREST does
+//   - `storage.buckets` (only the columns our migrations set), so a migration can create a bucket
 //   - Supabase's default privileges: new objects in `public` are granted to the API roles,
 //     so migrations must revoke what those roles shouldn't have.
 // Then it applies every file in `supabase/migrations` in name (timestamp) order.
@@ -32,6 +33,18 @@ const SUPABASE_STUB = /* sql */ `
   as $$
     select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb
   $$;
+
+  -- Supabase Storage's bucket table, reduced to the columns our migrations set.
+  create schema storage;
+  create table storage.buckets (
+    id text primary key,
+    name text not null unique,
+    public boolean default false,
+    file_size_limit bigint,
+    allowed_mime_types text[],
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
+  );
 
   grant usage on schema public to anon, authenticated, service_role;
   alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
