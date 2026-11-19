@@ -20,6 +20,10 @@ const db = {
   inserts: 0,
   downloads: [] as string[],
   nextChunkId: 0,
+  /** Make deleting chunks by id (an attempt's own chunks) fail. */
+  failDeleteByIds: false,
+  /** Called after each knowledge_sources update, with the patch. */
+  afterUpdate: undefined as ((patch: Partial<Source>) => void) | undefined,
 };
 
 const error = (message: string): DbError => ({ name: "PostgrestError", code: "XX000", message });
@@ -30,8 +34,9 @@ const matches = (row: Record<string, unknown>, filters: Filter[]) => filters.eve
 function table(name: "knowledge_sources" | "knowledge_chunks") {
   const rows = (): Record<string, unknown>[] => (name === "knowledge_sources" ? db.sources : db.chunks);
   /** A filter builder: .eq/.in add filters; awaiting it (or .maybeSingle/.select) runs `run`. */
-  const query = (run: (filters: Filter[]) => { data?: unknown; error: DbError | null }) => {
+  const query = (run: (filters: Filter[], usedIn: boolean) => { data?: unknown; error: DbError | null }) => {
     const filters: Filter[] = [];
+    let usedIn = false;
     const builder = {
       eq(column: string, value: unknown) {
         filters.push((r) => r[column] === value);
@@ -39,12 +44,13 @@ function table(name: "knowledge_sources" | "knowledge_chunks") {
       },
       in(column: string, values: unknown[]) {
         filters.push((r) => values.includes(r[column]));
+        usedIn = true;
         return builder;
       },
-      maybeSingle: () => Promise.resolve(run(filters)),
-      select: () => Promise.resolve(run(filters)),
+      maybeSingle: () => Promise.resolve(run(filters, usedIn)),
+      select: () => Promise.resolve(run(filters, usedIn)),
       then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-        Promise.resolve(run(filters)).then(resolve, reject),
+        Promise.resolve(run(filters, usedIn)).then(resolve, reject),
     };
     return builder;
   };
@@ -65,7 +71,8 @@ function table(name: "knowledge_sources" | "knowledge_chunks") {
       },
     }),
     delete: () =>
-      query((filters) => {
+      query((filters, usedIn) => {
+        if (usedIn && db.failDeleteByIds) return { error: error("delete by ids failed") };
         db.chunks = db.chunks.filter((r) => !matches(r, filters));
         return { error: null };
       }),
@@ -73,6 +80,7 @@ function table(name: "knowledge_sources" | "knowledge_chunks") {
       query((filters) => {
         const changed = db.sources.filter((r) => matches(r, filters));
         for (const r of changed) Object.assign(r, patch);
+        if (changed.length > 0) db.afterUpdate?.(patch);
         return { data: changed.map((r) => ({ id: r.id })), error: null };
       }),
   };
@@ -131,6 +139,8 @@ beforeEach(() => {
   db.inserts = 0;
   db.downloads = [];
   db.nextChunkId = 0;
+  db.failDeleteByIds = false;
+  db.afterUpdate = undefined;
   embedTexts.mockReset();
   embedTexts.mockImplementation(async (texts) => texts.map((_, i) => [i, 0.5]));
   consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -295,6 +305,41 @@ describe("processSource: one attempt per source", () => {
     expect(result).toEqual({ status: "failed", reason: "database_failed" });
     expect(status("s-race2")).toBe("ready");
     expect(chunksOf("s-race2").map((c) => c.id)).toEqual(["newer-1"]);
+  });
+
+  it("still sets failed (and clears the chunks) when deleting its own chunks fails", async () => {
+    addSource({ id: "s-cleanup" });
+    db.chunks.push({ id: "old-1", project_id: PROJECT, source_id: "s-cleanup", content: "old", embedding: "[]" });
+    db.failInsertOn = 2; // first batch inserted, second fails
+    db.failDeleteByIds = true; // and removing that first batch by id fails too
+
+    const result = await processSource({ sourceId: "s-cleanup", projectId: PROJECT, type: "text", text: longText(1000) });
+
+    expect(result).toEqual({ status: "failed", reason: "database_failed" });
+    expect(status("s-cleanup")).toBe("failed");
+    // Step 2 (all chunks, while still processing) removed what step 1 couldn't.
+    expect(chunksOf("s-cleanup")).toEqual([]);
+    expect(logged()).toContain("cleanup: delete own chunks failed");
+  });
+
+  it("releases the claim (failed) last, so a retry that claims right away keeps its chunks", async () => {
+    addSource({ id: "s-retry" });
+    db.chunks.push({ id: "old-1", project_id: PROJECT, source_id: "s-retry", content: "old", embedding: "[]" });
+    embedTexts.mockRejectedValue(new Error("timeout"));
+    let chunksWhenFailed: number | undefined;
+    db.afterUpdate = (patch) => {
+      if (patch.status !== "failed") return;
+      chunksWhenFailed = chunksOf("s-retry").length;
+      // A retry claims the source the moment it is failed and writes its chunk.
+      db.sources.find((s) => s.id === "s-retry")!.status = "processing";
+      db.chunks.push({ id: "retry-1", project_id: PROJECT, source_id: "s-retry", content: "retry", embedding: "[]" });
+    };
+
+    const result = await processSource({ sourceId: "s-retry", projectId: PROJECT, type: "text", text: "Hi." });
+
+    expect(result).toEqual({ status: "failed", reason: "embedding_failed" });
+    expect(chunksWhenFailed).toBe(0); // all cleanup ran before the claim was released
+    expect(chunksOf("s-retry").map((c) => c.id)).toEqual(["retry-1"]);
   });
 
   it("an attempt whose source stopped processing before it finished removes its own chunks", async () => {

@@ -41,8 +41,8 @@ type SourceRow = { id: string; project_id: string; type: string; storage_key: st
  * So a stale attempt that fails can't wipe the chunks of a newer attempt that finished.
  *
  * Running it again on a claimed source replaces its chunks. On any failure it deletes the
- * chunks it inserted; if it still holds the source, it sets `failed` and deletes the
- * source's old chunks too. It logs the reason (never the document text) and returns it. It
+ * chunks it inserted; if it still holds the source, it also deletes the source's older
+ * chunks, and only then sets `failed` (releasing the claim). It logs the reason (never the document text) and returns it. It
  * doesn't throw.
  */
 export async function processSource(input: ProcessSourceInput): Promise<ProcessSourceResult> {
@@ -93,17 +93,37 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
     }
     return { status: "ready", chunkCount: chunks.length };
   } catch (error) {
-    // Remove this attempt's own chunks. Then, only if the source is still processing (no
-    // newer attempt took it over), mark it failed and remove any older chunks too.
-    // Cleanup errors are logged; the original reason is what the caller gets.
-    try {
-      await deleteChunkIds(supabase, inserted);
-      if (await setStatusIfProcessing(supabase, source.id, "failed")) await deleteChunks(supabase, source.id);
-    } catch (cleanup) {
-      log(input, "cleanup failed", cleanup);
-    }
+    // Cleanup, each step on its own so one failing doesn't skip the rest (each failure is
+    // logged; the caller gets the original reason):
+    //   1. Remove this attempt's own chunks. Always safe, whoever holds the source.
+    //   2. While the source is still processing (our claim), remove all its chunks, i.e.
+    //      older ones. No other attempt can claim a processing source, so none can be
+    //      writing chunks now.
+    //   3. Last, release the claim: processing → failed. Only after this can a retry claim
+    //      the source, so nothing here can delete a retry's chunks.
+    await cleanupStep(input, "delete own chunks", () => deleteChunkIds(supabase, inserted));
+    await cleanupStep(input, "delete older chunks", async () => {
+      if (await isProcessing(supabase, source.id)) await deleteChunks(supabase, source.id);
+    });
+    await cleanupStep(input, "set failed", () => setStatusIfProcessing(supabase, source.id, "failed"));
     return fail(input, error);
   }
+}
+
+/** Run one cleanup step; log (don't throw) if it fails. */
+async function cleanupStep(input: ProcessSourceInput, step: string, run: () => Promise<unknown>): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    log(input, `cleanup: ${step} failed`, error);
+  }
+}
+
+/** True if the source still exists and is `processing`. */
+async function isProcessing(supabase: ServiceClient, sourceId: string): Promise<boolean> {
+  const { data, error } = await supabase.from("knowledge_sources").select("status").eq("id", sourceId).maybeSingle();
+  if (error) throw dbError("check status", error);
+  return data?.status === "processing";
 }
 
 /** Move the source from `processing` to `status`. False if it wasn't processing (or is gone). */
