@@ -158,6 +158,19 @@ describe("POST /api/widget/chat", () => {
     expectNotCounted();
   });
 
+  it("413 validation_error for an oversized body, before parsing, Arcjet or counting", async () => {
+    // Over the cap (1,000 × 6 + 1,024 bytes) but otherwise a valid shape.
+    const res = await post(JSON.stringify({ ...validBody(), pad: "x".repeat(8000) }));
+    await expectError(res, 413, "validation_error");
+    expect(protect).not.toHaveBeenCalled();
+    expectNotCounted();
+  });
+
+  it("accepts a max-length message even when every character is JSON-escaped", async () => {
+    const res = await post(JSON.stringify(validBody({ message: "\u0001".repeat(1000) })));
+    expect(res.status).toBe(200);
+  });
+
   it("429 rate_limited when Arcjet rate limits; no lookup, no count, no OpenAI", async () => {
     protect.mockResolvedValue({ allowed: false, reason: "rate_limit" });
     await expectError(await post(validBody()), 429, "rate_limited");

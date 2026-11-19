@@ -4,7 +4,7 @@
 // After the count, a failure still uses the message (no refund, §6.6).
 // The visitor's message text is never logged.
 
-import { PLAN_LIMITS, widgetChatRequestSchema, type WidgetChatResponse } from "@askwell/shared";
+import { MESSAGE_MAX_LENGTH, PLAN_LIMITS, widgetChatRequestSchema, type WidgetChatResponse } from "@askwell/shared";
 import { answerFromChunks, embedText } from "../../../../lib/ai";
 import {
   consumeMessage,
@@ -16,9 +16,16 @@ import {
   saveChatTurn,
 } from "../../../../lib/chat";
 import { protectWidgetChat } from "../../../../lib/security";
-import { widgetError, widgetJson, widgetPreflight } from "../../../../lib/widget/http";
+import { readJsonBody, widgetError, widgetJson, widgetPreflight } from "../../../../lib/widget/http";
 
 const NOT_FOUND = "No project or conversation with that id";
+
+/**
+ * Body size cap, checked on the bytes received before parsing. The worst valid body is a
+ * MESSAGE_MAX_LENGTH message where every UTF-16 unit is JSON-escaped as \uXXXX (6 bytes), plus
+ * the key, ids and field names (well under 1 KiB).
+ */
+const MAX_BODY_BYTES = MESSAGE_MAX_LENGTH * 6 + 1024;
 
 /**
  * Log an error by name and message only. Never the whole object: a Postgres error's `details`
@@ -31,13 +38,13 @@ function logError(step: string, error: unknown): void {
 
 export async function POST(request: Request): Promise<Response> {
   // 1. Validate the body shape (message length is in the schema).
-  let raw: unknown;
-  try {
-    raw = await request.json();
-  } catch {
-    return widgetError(400, "validation_error", "Body must be JSON");
+  const body = await readJsonBody(request, MAX_BODY_BYTES);
+  if (!body.ok) {
+    return body.reason === "too_large"
+      ? widgetError(413, "validation_error", "Request body is too large")
+      : widgetError(400, "validation_error", "Body must be JSON");
   }
-  const parsed = widgetChatRequestSchema.safeParse(raw);
+  const parsed = widgetChatRequestSchema.safeParse(body.value);
   if (!parsed.success) {
     return widgetError(400, "validation_error", parsed.error.issues[0]?.message ?? "Invalid request");
   }
@@ -102,8 +109,8 @@ export async function POST(request: Request): Promise<Response> {
     // The conversation was deleted after the check above.
     if (!saved.ok) return widgetError(404, "not_found", NOT_FOUND);
 
-    const body: WidgetChatResponse = { conversationId: saved.conversationId, reply: answer.reply };
-    return widgetJson(body, { headers: { "Cache-Control": "no-store" } });
+    const response: WidgetChatResponse = { conversationId: saved.conversationId, reply: answer.reply };
+    return widgetJson(response, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     logError("answer failed after counting", error);
     return widgetError(500, "internal", "Something went wrong");
