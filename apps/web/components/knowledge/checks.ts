@@ -73,6 +73,24 @@ export function isProcessing(status: KnowledgeSourceStatus): boolean {
   return sourceStatusLabel(status) === "Processing";
 }
 
+/**
+ * What to announce when the list refreshes: each source that left Processing, by title.
+ * `“FAQ” is ready.` / `“FAQ” failed to process.` Empty if nothing finished.
+ */
+export function statusChangeAnnouncement(
+  before: readonly { id: string; status: KnowledgeSourceStatus }[],
+  after: readonly { id: string; title: string; status: KnowledgeSourceStatus }[],
+): string {
+  const was = new Map(before.map((s) => [s.id, s.status]));
+  return after
+    .flatMap((source) => {
+      const previous = was.get(source.id);
+      if (!previous || !isProcessing(previous) || isProcessing(source.status)) return [];
+      return [source.status === "ready" ? `“${source.title}” is ready.` : `“${source.title}” failed to process.`];
+    })
+    .join(" ");
+}
+
 /** The label for a source's type. */
 export function sourceTypeLabel(type: KnowledgeSourceType): string {
   return { text: "Text", pdf: "PDF", md: "Markdown", txt: "TXT" }[type];

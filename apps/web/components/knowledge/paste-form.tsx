@@ -38,7 +38,7 @@ export function PasteForm({ projectId, onAdded }: { projectId: string; onAdded: 
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
+    <form onSubmit={onSubmit} noValidate aria-busy={sending} className="flex flex-col gap-3">
       <div>
         <label htmlFor={titleId} className="mb-2 block text-sm font-medium">
           Title
@@ -46,6 +46,9 @@ export function PasteForm({ projectId, onAdded }: { projectId: string; onAdded: 
         <TextInput
           id={titleId}
           value={title}
+          // Read-only (not disabled, which would drop focus) while sending: the fields are
+          // cleared on success, so an edit made meanwhile would be lost.
+          readOnly={sending}
           onChange={(e) => {
             setTitle(e.target.value);
             setError(null);
@@ -67,6 +70,7 @@ export function PasteForm({ projectId, onAdded }: { projectId: string; onAdded: 
         <textarea
           id={textId}
           value={text}
+          readOnly={sending}
           onChange={(e) => {
             setText(e.target.value);
             setError(null);

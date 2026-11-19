@@ -23,6 +23,11 @@ describe("SourceList", () => {
     expect(html).toContain("&lt;img src=x");
   });
 
+  it("has a polite status region for status changes", () => {
+    const html = renderToStaticMarkup(<SourceList sources={[source("Guide", "processing")]} onChanged={() => {}} />);
+    expect(html).toMatch(/<p role="status" aria-live="polite" class="sr-only"><\/p>/);
+  });
+
   it("shows uploading as Processing, plus type and date", () => {
     const html = renderToStaticMarkup(<SourceList sources={[source("Guide", "uploading")]} onChanged={() => {}} />);
     expect(html).toContain("Processing");

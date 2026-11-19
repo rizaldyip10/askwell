@@ -6,17 +6,34 @@ import { formatDate } from "../projects/format";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { cn } from "../ui/cn";
-import { sourceStatusLabel, sourceTypeLabel } from "./checks";
+import { sourceStatusLabel, sourceTypeLabel, statusChangeAnnouncement } from "./checks";
 import { DeleteSourceDialog } from "./delete-source-dialog";
 
-/** The project's sources, newest first. Titles render as text, never HTML (§9 XSS). */
+/**
+ * The project's sources, newest first. Titles render as text, never HTML (§9 XSS). A polite
+ * status region announces each source that finishes processing (Ready or Failed).
+ */
 export function SourceList({ sources, onChanged }: { sources: KnowledgeSource[]; onChanged: () => void }) {
+  const [previous, setPrevious] = useState(sources);
+  const [announcement, setAnnouncement] = useState("");
+  if (previous !== sources) {
+    // Compare with the last render's list (set during render, React's "previous props" pattern).
+    const message = statusChangeAnnouncement(previous, sources);
+    setPrevious(sources);
+    if (message) setAnnouncement(message);
+  }
+
   return (
-    <ul className="divide-y divide-glass-line">
-      {sources.map((source) => (
-        <SourceRow key={source.id} source={source} onChanged={onChanged} />
-      ))}
-    </ul>
+    <>
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+      <ul className="divide-y divide-glass-line">
+        {sources.map((source) => (
+          <SourceRow key={source.id} source={source} onChanged={onChanged} />
+        ))}
+      </ul>
+    </>
   );
 }
 

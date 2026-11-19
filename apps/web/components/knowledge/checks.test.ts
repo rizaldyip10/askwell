@@ -6,6 +6,7 @@ import {
   formatFileSize,
   isProcessing,
   sourceStatusLabel,
+  statusChangeAnnouncement,
   sourceTypeLabel,
   uploadContentType,
 } from "./checks";
@@ -115,5 +116,22 @@ describe("sourceTypeLabel", () => {
       "Markdown",
       "TXT",
     ]);
+  });
+});
+
+describe("statusChangeAnnouncement", () => {
+  const src = (id: string, title: string, status: string) => ({ id, title, status: status as never });
+
+  it("names each source that left Processing", () => {
+    const before = [src("1", "FAQ", "processing"), src("2", "Guide.pdf", "uploading"), src("3", "Old", "ready")];
+    const after = [src("1", "FAQ", "ready"), src("2", "Guide.pdf", "failed"), src("3", "Old", "ready")];
+    expect(statusChangeAnnouncement(before, after)).toBe("“FAQ” is ready. “Guide.pdf” failed to process.");
+  });
+
+  it("is empty when nothing finished, for new sources, and for uploading → processing", () => {
+    expect(statusChangeAnnouncement([src("1", "A", "processing")], [src("1", "A", "processing")])).toBe("");
+    expect(statusChangeAnnouncement([src("1", "A", "uploading")], [src("1", "A", "processing")])).toBe("");
+    expect(statusChangeAnnouncement([], [src("1", "New", "ready")])).toBe("");
+    expect(statusChangeAnnouncement([src("1", "A", "ready")], [src("1", "A", "ready")])).toBe("");
   });
 });
