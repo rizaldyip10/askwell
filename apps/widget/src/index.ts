@@ -13,8 +13,9 @@ export async function init(win: Window = window, fetchImpl: typeof fetch = fetch
   if (doc.querySelector(HOST_TAG)) return null;
   const config = await fetchConfig(setup.appOrigin, setup.key, fetchImpl);
   if (!config) return null;
-  if (doc.querySelector(HOST_TAG)) return null;
   if (!doc.body) await new Promise((r) => doc.addEventListener("DOMContentLoaded", r, { once: true }));
+  // Checked again right before mounting: another copy may have mounted while we waited.
+  if (doc.querySelector(HOST_TAG)) return null;
   return mountWidget(setup, config, win);
 }
 

@@ -51,6 +51,16 @@ describe("setup", () => {
     expect(readSetup(findLoaderScript(document))).toEqual({ key: KEY, appOrigin: APP });
   });
 
+  it.each(["/widget.js?v=2", "/widget.js#x", "/static/widget.js"])("finds the script at %s", (path) => {
+    addScript({ src: `${APP}${path}`, "data-key": KEY });
+    expect(readSetup(findLoaderScript(document))).toEqual({ key: KEY, appOrigin: APP });
+  });
+
+  it("ignores other scripts with data-key", () => {
+    addScript({ src: `${APP}/other.js`, "data-key": KEY });
+    expect(findLoaderScript(document)).toBeNull();
+  });
+
   it.each(["", "pk_short", "sk_abcdefghijklmnop", "pk_abcdefghijklmnop<", "pk_" + "a".repeat(65)])(
     "rejects key %j",
     (key) => {
@@ -94,6 +104,14 @@ describe("init", () => {
     expect(document.body.children).toHaveLength(1);
     expect(document.body.firstElementChild?.tagName.toLowerCase()).toBe(HOST_TAG);
     expect(document.head.querySelectorAll("style, link")).toHaveLength(before);
+  });
+
+  it("mounts only once when two copies finish loading together", async () => {
+    addScript({ src: `${APP}/widget.js`, "data-key": KEY });
+    const [a, b] = await Promise.all([init(window, okFetch()), init(window, okFetch())]);
+    handle = a ?? b;
+    expect([a, b].filter(Boolean)).toHaveLength(1);
+    expect(document.querySelectorAll(HOST_TAG)).toHaveLength(1);
   });
 
   it("mounts only once when pasted twice", async () => {
