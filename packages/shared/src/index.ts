@@ -1,4 +1,12 @@
-export const APP_NAME = "Askwell";
+export {
+  APP_NAME,
+  DEFAULT_WIDGET_CONFIG,
+  isWidgetMessage,
+  WIDGET_MESSAGE_TYPES,
+  type WidgetMessage,
+  type WidgetMessageType,
+} from "./widget";
+export * from "./widget-config";
 
 export * from "./plans";
 export * from "./limits";

@@ -11,6 +11,10 @@ export type WidgetConfigQuery = z.infer<typeof widgetConfigQuerySchema>;
 /** Plan-applied: Free gets the defaults and the badge. */
 export type WidgetConfigResponse = { config: WidgetConfig };
 
+/** GET /embed?key=pk_...&origin=... `origin` is the host page's origin, so the panel never posts to `*` (§9). */
+export const embedQuerySchema = z.object({ key: publicKeySchema, origin: z.url() });
+export type EmbedQuery = z.infer<typeof embedQuerySchema>;
+
 /** POST /api/widget/chat */
 export const widgetChatRequestSchema = z.strictObject({
   key: publicKeySchema,

@@ -1,8 +1,8 @@
 import { z } from "zod";
+import { PUBLIC_KEY_PATTERN, PUBLIC_KEY_PREFIX } from "../widget";
 
-export const PUBLIC_KEY_PREFIX = "pk_";
-/** `pk_` followed by 16–64 random URL-safe alphanumeric characters. */
-export const PUBLIC_KEY_PATTERN = /^pk_[A-Za-z0-9]{16,64}$/;
+// Defined in the zod-free widget module; re-exported here so existing imports keep working.
+export { PUBLIC_KEY_PATTERN, PUBLIC_KEY_PREFIX };
 export const publicKeySchema = z.string().regex(PUBLIC_KEY_PATTERN, "Invalid public key");
 
 /** `#rrggbb` hex color. */
