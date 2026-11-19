@@ -1,9 +1,7 @@
-import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import { APP_NAME } from "@askwell/shared";
-import { DASHBOARD_PATH, SIGN_IN_PATH, SIGN_UP_PATH } from "../lib/auth/routes";
 import "./globals.css";
 
 const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
@@ -19,17 +17,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="antialiased">
-        <ClerkProvider
-          signInUrl={SIGN_IN_PATH}
-          signUpUrl={SIGN_UP_PATH}
-          signInFallbackRedirectUrl={DASHBOARD_PATH}
-          signUpFallbackRedirectUrl={DASHBOARD_PATH}
-          afterSignOutUrl={SIGN_IN_PATH}
-        >
-          {children}
-        </ClerkProvider>
-      </body>
+      {/* No ClerkProvider here: /embed runs in third-party iframes, where Clerk's JS throws
+          (blocked localStorage). The dashboard, sign-in and sign-up layouts each add it. */}
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

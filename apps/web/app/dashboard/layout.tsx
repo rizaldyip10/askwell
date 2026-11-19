@@ -1,10 +1,11 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { DashboardShell } from "../../components/dashboard/dashboard-shell";
 import { EmptyState } from "../../components/dashboard/empty-state";
 import { buttonClasses } from "../../components/ui/button";
 import { ensureSignedInAccount } from "../../lib/accounts/current-account";
-import { DASHBOARD_PATH } from "../../lib/auth/routes";
+import { DASHBOARD_PATH, SIGN_IN_PATH, SIGN_UP_PATH } from "../../lib/auth/routes";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -16,7 +17,18 @@ export const metadata: Metadata = { title: "Dashboard" };
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const account = await ensureSignedInAccount();
 
-  return <DashboardShell>{account === "ready" ? children : <AccountErrorState />}</DashboardShell>;
+  // ClerkProvider lives here, not in the root layout, so /embed loads no Clerk JS.
+  return (
+    <ClerkProvider
+      signInUrl={SIGN_IN_PATH}
+      signUpUrl={SIGN_UP_PATH}
+      signInFallbackRedirectUrl={DASHBOARD_PATH}
+      signUpFallbackRedirectUrl={DASHBOARD_PATH}
+      afterSignOutUrl={SIGN_IN_PATH}
+    >
+      <DashboardShell>{account === "ready" ? children : <AccountErrorState />}</DashboardShell>
+    </ClerkProvider>
+  );
 }
 
 // `app/dashboard/error.tsx` can't catch errors from this layout (its boundary sits inside
