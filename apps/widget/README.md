@@ -15,7 +15,9 @@ esbuild bundles it to `dist/widget.js`, and the web app's build copies it to `ap
 The widget only proves itself on a page from **another origin**, the way a customer's site loads it.
 
 1. **Get a key.** Sign in on the preview, create a project, open **Install**, and copy the snippet.
-   Its `src` already points at the preview (`appUrl()` uses `VERCEL_BRANCH_URL` on previews).
+   Its `src` points at the preview's **branch** URL (`appUrl()` uses `VERCEL_BRANCH_URL`), which always
+   serves the branch's latest deployment. To test a specific older commit, replace the snippet's origin
+   with that deployment's own URL. Either way, check the origin in `src` before testing.
 2. **Serve a plain page from another origin**, containing only the snippet:
    ```bash
    mkdir -p /tmp/host && cd /tmp/host
@@ -29,13 +31,15 @@ The widget only proves itself on a page from **another origin**, the way a custo
      It adds the header to the script, the config fetch and the `/embed` iframe.
    - Don't rely on `x-vercel-set-bypass-cookie: samesitenone` for the `/embed` iframe. Vercel answers with a
      307 that sets the cookie, but a browser that blocks third-party cookies (Chromium does) never stores it,
-     so the iframe redirects in a loop (`307` → `307` → …). The header on every request needs no cookie.
+     so the iframe redirects in a loop (`307` → `307` → …). Also, the loader fetches its config with
+     `credentials: "omit"`, so a cookie would never reach that request anyway. The header on every request
+     covers the script, the config fetch and the iframe.
 4. **Check:**
    - The button appears bottom right ("Ask us", black by default).
    - Click → the panel opens with the project's header and, on Free, "Powered by Askwell".
    - Send a message → typing → the mock reply.
    - The ✕ button, Escape inside the panel, and Escape on the host page all close it.
-   - With an unknown `data-key`, nothing renders and the host page logs only one `[askwell]` warning.
+   - With an unknown but well-formed `data-key` (e.g. `pk_UnknownKeyUnknownKey0000`), nothing renders and the host page logs only one `[askwell]` warning.
      `/embed?key=<unknown>&origin=…` is an empty page.
 
 Notes:
