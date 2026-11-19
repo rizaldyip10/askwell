@@ -9,7 +9,7 @@ export function apiError(status: number, code: ApiErrorCode, message: string): R
   return Response.json(body, { status });
 }
 
-export const unauthorized = () => apiError(401, "unauthorized", "Sign in to continue");
+export const unauthorized = () => apiError(401, "unauthorized", "Sign in required.");
 export const notFound = () => apiError(404, "not_found", "Project not found");
 export const internalError = () => apiError(500, "internal", "Something went wrong");
 
