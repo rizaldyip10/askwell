@@ -172,4 +172,22 @@ describe("POST /api/projects/:id/knowledge/upload-url", () => {
     expect(deleteCalls).toContainEqual({ method: "eq", args: ["id", SOURCE_ID] });
     log.mockRestore();
   });
+
+  it("logs a failed rollback, so a stranded reservation is visible", async () => {
+    owned();
+    reserveOk();
+    storage.bucket.createSignedUploadUrl.mockResolvedValueOnce({ data: null, error: { name: "StorageError" } });
+    service.queue("knowledge_sources", fail("XX000", "delete failed"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await uploadUrl();
+
+    expect(res.status).toBe(500);
+    expect(log).toHaveBeenCalledWith("[knowledge] upload-url rollback failed", {
+      projectId: PROJECT_ID,
+      sourceId: SOURCE_ID,
+      error: "XX000",
+    });
+    log.mockRestore();
+  });
 });

@@ -20,6 +20,8 @@ const db = {
   inserts: 0,
   downloads: [] as string[],
   nextChunkId: 0,
+  /** Make reading a source fail (a database error in loadSource). */
+  failSourceRead: false,
   /** Make deleting chunks by id (an attempt's own chunks) fail. */
   failDeleteByIds: false,
   /** Called after each knowledge_sources update, with the patch. */
@@ -58,6 +60,7 @@ function table(name: "knowledge_sources" | "knowledge_chunks") {
   return {
     select: () =>
       query((filters) => {
+        if (name === "knowledge_sources" && db.failSourceRead) return { data: null, error: error("read failed") };
         const found = rows().filter((r) => matches(r, filters));
         return { data: found[0] ? { ...found[0] } : null, error: null };
       }),
@@ -140,6 +143,7 @@ beforeEach(() => {
   db.downloads = [];
   db.nextChunkId = 0;
   db.failDeleteByIds = false;
+  db.failSourceRead = false;
   db.afterUpdate = undefined;
   embedTexts.mockReset();
   embedTexts.mockImplementation(async (texts) => texts.map((_, i) => [i, 0.5]));
@@ -240,6 +244,27 @@ describe("processSource: project_id", () => {
     expect(status("s-theirs")).toBe("processing");
     expect(db.chunks).toEqual([]);
     expect(embedTexts).not.toHaveBeenCalled();
+  });
+
+
+  it("a database error reading the source: marks it failed (only if processing in this project)", async () => {
+    addSource({ id: "s-read" });
+    db.failSourceRead = true;
+
+    const result = await processSource({ sourceId: "s-read", projectId: PROJECT, type: "text", text: "Hi." });
+
+    expect(result).toEqual({ status: "failed", reason: "database_failed" });
+    expect(status("s-read")).toBe("failed");
+    expect(embedTexts).not.toHaveBeenCalled();
+  });
+
+  it("that failed update is scoped to the input's project: another project's source is untouched", async () => {
+    addSource({ id: "s-other-proj", project_id: OTHER_PROJECT });
+    db.failSourceRead = true;
+
+    await processSource({ sourceId: "s-other-proj", projectId: PROJECT, type: "text", text: "Hi." });
+
+    expect(status("s-other-proj")).toBe("processing");
   });
 
   it("refuses an input whose type or storage key doesn't match the source", async () => {

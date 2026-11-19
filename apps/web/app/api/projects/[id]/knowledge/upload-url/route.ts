@@ -55,7 +55,20 @@ export async function POST(request: Request, context: Context): Promise<Response
     const { data, error } = await service.storage.from(KNOWLEDGE_BUCKET).createSignedUploadUrl(storageKey);
     if (error || !data) {
       // Don't leave a reservation nobody can upload to.
-      await service.from("knowledge_sources").delete().eq("id", reserved.source.id).eq("project_id", projectId);
+      const { error: rollbackError } = await service
+        .from("knowledge_sources")
+        .delete()
+        .eq("id", reserved.source.id)
+        .eq("project_id", projectId);
+      if (rollbackError) {
+        // The `uploading` row stays and holds a slot until the owner deletes it or it is
+        // reclaimed after 2 hours; log it so it's visible.
+        console.error("[knowledge] upload-url rollback failed", {
+          projectId,
+          sourceId: reserved.source.id,
+          error: rollbackError.code,
+        });
+      }
       throw new Error(`createSignedUploadUrl failed: ${error?.name ?? "no data"}`);
     }
 
