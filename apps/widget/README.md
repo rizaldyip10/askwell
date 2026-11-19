@@ -60,7 +60,7 @@ and this check uses about 25), or reset `messages_used` on dev afterwards.
    | Ask | Expect |
    |---|---|
    | A fact from the PDF ("When are you open on Friday?") | The correct answer from the PDF |
-   | Something unrelated ("What's the capital of France?") | Exactly `NO_ANSWER_REPLY` from `packages/shared` |
+   | Something unrelated ("What's the capital of France?") | Exactly `NO_ANSWER_REPLY` (`apps/web/lib/ai/answer.ts`) |
    | 21 messages within one minute | The 21st shows "You're sending messages too fast…" |
 
    The rate limit is 20 messages a minute per key and IP. One panel waits for each reply (about 2 s),
