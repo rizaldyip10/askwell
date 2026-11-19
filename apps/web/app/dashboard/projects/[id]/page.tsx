@@ -31,7 +31,7 @@ export default async function ProjectOverviewPage({ params }: Props) {
       </div>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <GlassPanel as="section" aria-labelledby="public-key-heading" className="p-5">
+        <GlassPanel as="section" aria-labelledby="public-key-heading" className="min-w-0 p-5">
           <h2 id="public-key-heading" className="text-base font-semibold tracking-tight">
             Public key
           </h2>
@@ -46,7 +46,7 @@ export default async function ProjectOverviewPage({ params }: Props) {
           </div>
         </GlassPanel>
 
-        <GlassPanel as="section" aria-labelledby="install-heading" className="flex flex-col p-5">
+        <GlassPanel as="section" aria-labelledby="install-heading" className="flex min-w-0 flex-col p-5">
           <h2 id="install-heading" className="text-base font-semibold tracking-tight">
             Install
           </h2>
