@@ -37,10 +37,58 @@ The widget only proves itself on a page from **another origin**, the way a custo
 4. **Check:**
    - The button appears bottom right ("Ask us", black by default).
    - Click → the panel opens with the project's header and, on Free, "Powered by Askwell".
-   - Send a message → typing → the mock reply.
+   - Send a message → typing → a reply from the chat route (see the Phase 3 check below for real answers).
    - The ✕ button, Escape inside the panel, and Escape on the host page all close it.
    - With an unknown but well-formed `data-key` (e.g. `pk_UnknownKeyUnknownKey0000`), nothing renders and the host page logs only one `[askwell]` warning.
      `/embed?key=<unknown>&origin=…` is an empty page.
+
+## Phase 3 check: knowledge → answer → rate limit
+
+Run it on a preview with Lanes A and B merged. Use a **fresh project** (Free has 100 messages a month,
+and this check uses about 25), or reset `messages_used` on dev afterward. Delete the test project and
+test user when you're done.
+
+**Prerequisite:** the preview needs `ARCJET_KEY` (and `OPENAI_API_KEY`). Without an Arcjet key the
+protection helper fails open, so the 21st message passes. If the limit never triggers, check the
+deployment's logs for Arcjet errors before suspecting the rule.
+
+1. **Make a PDF** with a few clear facts. Headless Chromium can print one from HTML:
+   ```bash
+   printf '<h1>Store FAQ</h1><p>Store hours: Monday to Friday, 9:00 to 17:00. Closed on weekends.</p><p>Returns are accepted within 30 days with a receipt.</p>' > /tmp/faq.html
+   chromium --headless --no-sandbox --print-to-pdf=/tmp/faq.pdf /tmp/faq.html
+   ```
+2. **Upload it.** Sign in on the preview (a `+clerk_test` user, code `424242`) → create a project →
+   **Knowledge** → upload the PDF → wait until the source shows **Ready**.
+3. **Install** → copy the snippet → serve it on another origin and drive it with Playwright, as above.
+4. **Record the baseline** before sending anything: on dev,
+   `select messages_used from projects where public_key = 'pk_…'`.
+5. **Check in the panel:**
+
+   | Ask | Expect |
+   |---|---|
+   | A fact from the PDF ("When are you open on Friday?") | The correct answer from the PDF |
+   | Something unrelated ("What's the capital of France?") | Exactly `NO_ANSWER_REPLY` (`apps/web/lib/ai/answer.ts`) |
+   | 21 messages within one minute | The 21st shows "You're sending messages too fast…" |
+
+   The rate limit is a fixed window of 20 messages a minute per key and IP. The questions above can
+   start a window, so **wait at least 61 s after the last one** before the burst; then all 21 sends
+   fall in one fresh window. One panel waits for each reply (about 2 s), so a single tab can spread
+   21 sends over two windows and never hit the limit. Send from 3 tabs of the same page at once
+   (7 each takes about 25 s).
+
+   Pass if the 21 sends give **20 answers and exactly one "too fast"** refusal. Don't check which send
+   was refused: with three tabs, requests can reach the limiter out of send order, and a 429 comes back
+   at once while an answer takes 2–3 s, so neither send order nor arrival order is the limiter's order.
+6. **Check the count.** Read `messages_used` again and compare it with the baseline. It goes up by
+   every request that passed the quota count step: refused (429) messages don't count, but a request
+   counted and then failing later (e.g. a 500 from embedding or the model) does. With no 500s, the
+   increase equals the number of answered messages.
+
+Screenshots from the P3K-T09 run:
+
+| PDF ready | Answers | 21st message refused |
+|---|---|---|
+| ![faq.pdf Ready on the Knowledge page](docs/phase3/knowledge-ready.png) | ![Two answers from the PDF and the "I don't know" reply](docs/phase3/panel-answers.png) | ![The 21st message shows the too-fast message](docs/phase3/panel-too-fast.png) |
 
 Notes:
 - Press Escape only after the panel has hydrated (it posts `askwell:ready`). The header is
