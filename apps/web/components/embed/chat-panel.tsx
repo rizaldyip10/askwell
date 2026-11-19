@@ -34,6 +34,15 @@ export function ChatPanel({ config, publicKey, origin }: ChatPanelProps) {
     postToHost(window.parent, origin, { type: "askwell:ready" });
   }, [origin]);
 
+  // Focus is inside the iframe while the panel is open, so the loader can't see Escape. Ask it to close.
+  useEffect(() => {
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") postToHost(window.parent, origin, { type: "askwell:close" });
+    };
+    document.addEventListener("keydown", onKeydown);
+    return () => document.removeEventListener("keydown", onKeydown);
+  }, [origin]);
+
   useEffect(() => {
     listRef.current?.lastElementChild?.scrollIntoView({ block: "end" });
   }, [state.messages.length, state.waiting]);
