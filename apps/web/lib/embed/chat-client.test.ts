@@ -97,13 +97,24 @@ describe("chatErrorMessage", () => {
     expect(chatErrorMessage(new ChatError("rate_limited", "x"))).toBe(RATE_LIMITED_MESSAGE);
     expect(RATE_LIMITED_MESSAGE).toMatch(/too fast/);
     expect(chatErrorMessage(new ChatError("quota_exceeded", "x"))).toBe(QUOTA_MESSAGE);
-    // The injection refusal is a 400 validation_error from the route.
-    expect(chatErrorMessage(new ChatError("validation_error", "x"))).toBe(REPHRASE_MESSAGE);
     expect(chatErrorMessage(new ChatError("not_found", "x"))).toBe(RESTARTED_MESSAGE);
   });
 
-  it("never shows the server's raw message", () => {
-    for (const code of API_ERROR_CODES) {
+  it("shows the server's message for validation_error (injection refusal, oversized body)", () => {
+    const refusal = "We couldn't send that message. Try rephrasing it.";
+    expect(chatErrorMessage(new ChatError("validation_error", refusal))).toBe(refusal);
+    expect(chatErrorMessage(new ChatError("validation_error", "Request body is too large"))).toBe(
+      "Request body is too large",
+    );
+    expect(chatErrorMessage(new ChatError("validation_error", "  "))).toBe(REPHRASE_MESSAGE);
+  });
+
+  it("keeps the restarted text for not_found", () => {
+    expect(chatErrorMessage(new ChatError("not_found", "x"))).toBe(RESTARTED_MESSAGE);
+  });
+
+  it("never shows the server's raw message for other codes", () => {
+    for (const code of API_ERROR_CODES.filter((c) => c !== "validation_error")) {
       expect(chatErrorMessage(new ChatError(code, "secret stack trace"))).not.toContain("secret");
     }
   });

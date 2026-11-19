@@ -54,8 +54,10 @@ export const REPHRASE_MESSAGE = "We couldn't send that message. Try rephrasing i
 export const RESTARTED_MESSAGE = "This chat was restarted. Send your message again to continue.";
 
 /**
- * The friendly text the panel shows for a failed send. Never the server's raw message.
- * `validation_error` covers the prompt-injection refusal and any other rejected message.
+ * The friendly text the panel shows for a failed send.
+ * `validation_error` (the prompt-injection refusal, an oversized body) shows the server's own
+ * message, which the route writes for visitors; every other code uses fixed text, so internal
+ * details never reach the visitor. Rendered as plain text (§9 XSS).
  */
 export function chatErrorMessage(error: unknown): string {
   if (error instanceof ChatError) {
@@ -65,7 +67,7 @@ export function chatErrorMessage(error: unknown): string {
       case "quota_exceeded":
         return QUOTA_MESSAGE;
       case "validation_error":
-        return REPHRASE_MESSAGE;
+        return error.message.trim() || REPHRASE_MESSAGE;
       case "not_found":
         return RESTARTED_MESSAGE;
     }
