@@ -13,8 +13,14 @@ describe("widgetSnippet", () => {
     );
   });
 
+  it("accepts a bracketed IPv6 origin, as appUrl() returns it", () => {
+    expect(widgetSnippet("http://[::1]:3000", KEY)).toBe(
+      `<script src="http://[::1]:3000/widget.js" data-key="${KEY}" defer></script>`,
+    );
+  });
+
   it("rejects an app URL that isn't a bare http(s) origin", () => {
-    for (const url of ["https://askwell.app/", "https://askwell.app/x", "askwell.app", "javascript:alert(1)", 'https://a.app"onload="x']) {
+    for (const url of ["https://askwell.app/", "https://askwell.app/x", "askwell.app", "javascript:alert(1)", 'https://a.app"onload="x', "https://user@a.app", "http://[::1", "ftp://a.app"]) {
       expect(() => widgetSnippet(url, KEY), url).toThrow();
     }
   });

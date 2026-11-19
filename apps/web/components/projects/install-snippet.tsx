@@ -29,7 +29,12 @@ export function InstallSnippet({ snippet }: { snippet: string }) {
         <CodeBlock code={snippet} label="HTML" />
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <CopyButton value={snippet} label="Copy script tag" onFailed={selectSnippet} />
+        <CopyButton
+          value={snippet}
+          label="Copy script tag"
+          onFailed={selectSnippet}
+          onCopied={() => setManual(false)}
+        />
         {manual ? (
           <p role="status" className="text-sm text-fg-muted">
             Your browser blocked copying. The tag is selected: press Ctrl+C (⌘C on a Mac).

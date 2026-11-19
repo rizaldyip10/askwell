@@ -9,10 +9,12 @@ type CopyButtonProps = {
   label?: string;
   /** Called when every copy method is blocked, so the caller can help the user copy by hand. */
   onFailed?: () => void;
+  /** Called when the copy worked. */
+  onCopied?: () => void;
 };
 
 /** Copies `value` to the clipboard and says so for 2s. */
-export function CopyButton({ value, label = "Copy", onFailed }: CopyButtonProps) {
+export function CopyButton({ value, label = "Copy", onFailed, onCopied }: CopyButtonProps) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
 
   useEffect(() => {
@@ -25,6 +27,7 @@ export function CopyButton({ value, label = "Copy", onFailed }: CopyButtonProps)
     const result = await copyText(value);
     setState(result);
     if (result === "failed") onFailed?.();
+    else onCopied?.();
   }
 
   return (
