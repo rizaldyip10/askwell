@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "pnpm build:widget && next dev",
+    "build": "pnpm build:widget && next build",
+    "build:widget": "pnpm --filter @askwell/widget build && node -e \"require('fs').mkdirSync('public',{recursive:true});require('fs').copyFileSync('../widget/dist/widget.js','public/widget.js')\"",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint .",
@@ -22,6 +23,7 @@
     "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@askwell/widget": "workspace:*",
     "@tailwindcss/postcss": "4.3.4",
     "@types/node": "^24.19.2",
     "@types/react": "19.3.0",
