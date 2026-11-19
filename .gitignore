@@ -7,6 +7,8 @@ out/
 dist/
 *.tsbuildinfo
 next-env.d.ts
+# widget bundle, copied in by the web build
+apps/web/public/widget.js
 
 # env (never commit secrets)
 .env

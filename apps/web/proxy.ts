@@ -24,9 +24,12 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and static files, unless found in search params.
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes.
-    "/(api|trpc)(.*)",
+    // Skip Next.js internals, static files (unless found in search params) and
+    // the widget paths. The widget runs in third-party iframes and cross-origin
+    // fetches, where Clerk's dev-instance handshake redirect would break it:
+    // /embed and below, /api/widget/* and /widget.js never reach Clerk.
+    "/((?!_next|embed(?:/|$)|api/widget/|widget\\.js$|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // Always run for API routes, except the public widget routes.
+    "/(api(?!/widget/)|trpc)(.*)",
   ],
 };
