@@ -21,7 +21,7 @@ export type ProcessSourceResult =
   | { status: "ready"; chunkCount: number }
   | { status: "failed"; reason: KnowledgeFailureReason };
 
-type SourceRow = { id: string; project_id: string; type: string; storage_key: string | null };
+type SourceRow = { id: string; project_id: string; type: string; storage_key: string | null; status: string };
 
 /**
  * Turn a knowledge source into embedded chunks: get the text (pasted, or downloaded from the
@@ -32,9 +32,18 @@ type SourceRow = { id: string; project_id: string; type: string; storage_key: st
  * `storageKey` for a file); otherwise it returns `source_not_found` and writes nothing.
  * Chunks always get the project_id read from the source row, never one from the input.
  *
- * Running it again on a source replaces its chunks. On any failure it deletes the source's
- * chunks, sets the source to `failed`, logs the reason (never the document text), and
- * returns the reason. It doesn't throw.
+ * One attempt per source at a time. The caller must first claim the source by moving it to
+ * `processing` with a conditional update that only one request can win (finalize:
+ * `uploading` → `processing`; a re-run: `ready`/`failed` → `processing`), and call this only
+ * if it won. A source that isn't `processing` returns `not_processing`, with nothing written.
+ * As a second guard, an attempt only ever deletes its own new chunks, and it changes the
+ * status (`processing` → `ready` or `failed`) only while the source is still `processing`.
+ * So a stale attempt that fails can't wipe the chunks of a newer attempt that finished.
+ *
+ * Running it again on a claimed source replaces its chunks. On any failure it deletes the
+ * chunks it inserted; if it still holds the source, it sets `failed` and deletes the
+ * source's old chunks too. It logs the reason (never the document text) and returns it. It
+ * doesn't throw.
  */
 export async function processSource(input: ProcessSourceInput): Promise<ProcessSourceResult> {
   const supabase = createServiceClient();
@@ -46,6 +55,7 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
     return fail(input, error);
   }
 
+  const inserted: string[] = [];
   try {
     const text = await sourceText(supabase, input, source);
     const chunks = chunkText(text);
@@ -61,6 +71,7 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
       throw new KnowledgeProcessingError("embedding_failed", `Expected ${chunks.length} vectors, got ${vectors.length}`);
     }
 
+    // The old chunks go first, so a reader never sees old and new mixed for long.
     await deleteChunks(supabase, source.id);
     const rows = chunks.map((content, i) => ({
       project_id: source.project_id,
@@ -69,36 +80,53 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
       embedding: JSON.stringify(vectors[i]),
     }));
     for (let i = 0; i < rows.length; i += CHUNK_INSERT_BATCH) {
-      const { error } = await supabase.from("knowledge_chunks").insert(rows.slice(i, i + CHUNK_INSERT_BATCH));
+      const { data, error } = await supabase
+        .from("knowledge_chunks")
+        .insert(rows.slice(i, i + CHUNK_INSERT_BATCH))
+        .select("id");
       if (error) throw dbError("insert chunks", error);
+      inserted.push(...(data ?? []).map((row) => row.id));
     }
 
-    const { error } = await supabase.from("knowledge_sources").update({ status: "ready" }).eq("id", source.id);
-    if (error) throw dbError("set ready", error);
-
+    if (!(await setStatusIfProcessing(supabase, source.id, "ready"))) {
+      throw new KnowledgeProcessingError("not_processing", "The source is no longer processing");
+    }
     return { status: "ready", chunkCount: chunks.length };
   } catch (error) {
-    // Leave no partial chunks behind, then mark the source failed. Cleanup errors are
-    // logged; the original reason is what the caller gets.
+    // Remove this attempt's own chunks. Then, only if the source is still processing (no
+    // newer attempt took it over), mark it failed and remove any older chunks too.
+    // Cleanup errors are logged; the original reason is what the caller gets.
     try {
-      await deleteChunks(supabase, source.id);
+      await deleteChunkIds(supabase, inserted);
+      if (await setStatusIfProcessing(supabase, source.id, "failed")) await deleteChunks(supabase, source.id);
     } catch (cleanup) {
-      log(input, "cleanup: delete chunks failed", cleanup);
+      log(input, "cleanup failed", cleanup);
     }
-    const { error: statusError } = await supabase
-      .from("knowledge_sources")
-      .update({ status: "failed" })
-      .eq("id", source.id);
-    if (statusError) log(input, "cleanup: set failed failed", statusError);
     return fail(input, error);
   }
 }
 
-/** The source row, if it belongs to the input's project and matches its type and file. */
+/** Move the source from `processing` to `status`. False if it wasn't processing (or is gone). */
+async function setStatusIfProcessing(
+  supabase: ServiceClient,
+  sourceId: string,
+  status: "ready" | "failed",
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("knowledge_sources")
+    .update({ status })
+    .eq("id", sourceId)
+    .eq("status", "processing")
+    .select("id");
+  if (error) throw dbError(`set ${status}`, error);
+  return (data ?? []).length > 0;
+}
+
+/** The source row, if it belongs to the input's project, matches its type and file, and is processing. */
 async function loadSource(supabase: ServiceClient, input: ProcessSourceInput): Promise<SourceRow> {
   const { data, error } = await supabase
     .from("knowledge_sources")
-    .select("id, project_id, type, storage_key")
+    .select("id, project_id, type, storage_key, status")
     .eq("id", input.sourceId)
     .eq("project_id", input.projectId)
     .maybeSingle();
@@ -109,6 +137,9 @@ async function loadSource(supabase: ServiceClient, input: ProcessSourceInput): P
     data.type === input.type &&
     (input.type === "text" ? data.storage_key === null : data.storage_key === input.storageKey);
   if (!matches) throw new KnowledgeProcessingError("source_not_found", "No matching source in this project");
+  if (data.status !== "processing") {
+    throw new KnowledgeProcessingError("not_processing", `The source is ${data.status}, not processing`);
+  }
   return data;
 }
 
@@ -133,6 +164,16 @@ async function sourceText(supabase: ServiceClient, input: ProcessSourceInput, so
 async function deleteChunks(supabase: ServiceClient, sourceId: string): Promise<void> {
   const { error } = await supabase.from("knowledge_chunks").delete().eq("source_id", sourceId);
   if (error) throw dbError("delete chunks", error);
+}
+
+/** Chunk ids per delete request, so the `in` filter keeps the URL short. */
+const DELETE_ID_BATCH = 100;
+
+async function deleteChunkIds(supabase: ServiceClient, ids: string[]): Promise<void> {
+  for (let i = 0; i < ids.length; i += DELETE_ID_BATCH) {
+    const { error } = await supabase.from("knowledge_chunks").delete().in("id", ids.slice(i, i + DELETE_ID_BATCH));
+    if (error) throw dbError("delete own chunks", error);
+  }
 }
 
 function dbError(step: string, error: unknown): KnowledgeProcessingError {

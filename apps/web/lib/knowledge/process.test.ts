@@ -8,7 +8,7 @@ vi.mock("server-only", () => ({}));
 // ---------------------------------------------------------------------------
 
 type Source = { id: string; project_id: string; type: string; storage_key: string | null; status: string };
-type Chunk = { project_id: string; source_id: string; content: string; embedding: string };
+type Chunk = { id?: string; project_id: string; source_id: string; content: string; embedding: string };
 type DbError = { name: string; code: string; message: string };
 
 const db = {
@@ -19,23 +19,30 @@ const db = {
   failInsertOn: 0,
   inserts: 0,
   downloads: [] as string[],
+  nextChunkId: 0,
 };
 
 const error = (message: string): DbError => ({ name: "PostgrestError", code: "XX000", message });
 
-type Filter = [column: string, value: unknown];
-const matches = (row: Record<string, unknown>, filters: Filter[]) => filters.every(([c, v]) => row[c] === v);
+type Filter = (row: Record<string, unknown>) => boolean;
+const matches = (row: Record<string, unknown>, filters: Filter[]) => filters.every((f) => f(row));
 
 function table(name: "knowledge_sources" | "knowledge_chunks") {
   const rows = (): Record<string, unknown>[] => (name === "knowledge_sources" ? db.sources : db.chunks);
-  const query = (run: (filters: Filter[]) => unknown) => {
+  /** A filter builder: .eq/.in add filters; awaiting it (or .maybeSingle/.select) runs `run`. */
+  const query = (run: (filters: Filter[]) => { data?: unknown; error: DbError | null }) => {
     const filters: Filter[] = [];
     const builder = {
       eq(column: string, value: unknown) {
-        filters.push([column, value]);
+        filters.push((r) => r[column] === value);
+        return builder;
+      },
+      in(column: string, values: unknown[]) {
+        filters.push((r) => values.includes(r[column]));
         return builder;
       },
       maybeSingle: () => Promise.resolve(run(filters)),
+      select: () => Promise.resolve(run(filters)),
       then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
         Promise.resolve(run(filters)).then(resolve, reject),
     };
@@ -48,12 +55,15 @@ function table(name: "knowledge_sources" | "knowledge_chunks") {
         const found = rows().filter((r) => matches(r, filters));
         return { data: found[0] ? { ...found[0] } : null, error: null };
       }),
-    insert: (newRows: Chunk[]) => {
-      db.inserts += 1;
-      if (db.inserts === db.failInsertOn) return Promise.resolve({ error: error(`bad row ${newRows[0]?.content}`) });
-      db.chunks.push(...newRows);
-      return Promise.resolve({ error: null });
-    },
+    insert: (newRows: Chunk[]) => ({
+      select: async () => {
+        db.inserts += 1;
+        if (db.inserts === db.failInsertOn) return { data: null, error: error(`bad row ${newRows[0]?.content}`) };
+        const withIds = newRows.map((r) => ({ ...r, id: `c${++db.nextChunkId}` }));
+        db.chunks.push(...withIds);
+        return { data: withIds.map((r) => ({ id: r.id })), error: null };
+      },
+    }),
     delete: () =>
       query((filters) => {
         db.chunks = db.chunks.filter((r) => !matches(r, filters));
@@ -61,8 +71,9 @@ function table(name: "knowledge_sources" | "knowledge_chunks") {
       }),
     update: (patch: Partial<Source>) =>
       query((filters) => {
-        for (const r of db.sources) if (matches(r, filters)) Object.assign(r, patch);
-        return { error: null };
+        const changed = db.sources.filter((r) => matches(r, filters));
+        for (const r of changed) Object.assign(r, patch);
+        return { data: changed.map((r) => ({ id: r.id })), error: null };
       }),
   };
 }
@@ -119,6 +130,7 @@ beforeEach(() => {
   db.failInsertOn = 0;
   db.inserts = 0;
   db.downloads = [];
+  db.nextChunkId = 0;
   embedTexts.mockReset();
   embedTexts.mockImplementation(async (texts) => texts.map((_, i) => [i, 0.5]));
   consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -186,8 +198,8 @@ describe("processSource: success", () => {
     expect(chunksOf("s-big")).toHaveLength(count);
   });
 
-  it("re-running replaces the source's chunks and leaves other sources' chunks alone", async () => {
-    addSource({ id: "s-rerun", status: "ready" });
+  it("re-running a claimed source replaces its chunks and leaves other sources' chunks alone", async () => {
+    addSource({ id: "s-rerun", status: "processing" }); // the route moved it ready → processing
     db.chunks.push(
       { project_id: PROJECT, source_id: "s-rerun", content: "old 1", embedding: "[]" },
       { project_id: PROJECT, source_id: "s-rerun", content: "old 2", embedding: "[]" },
@@ -228,6 +240,75 @@ describe("processSource: project_id", () => {
     expect(wrongType).toEqual({ status: "failed", reason: "source_not_found" });
     expect(db.downloads).toEqual([]);
     expect(status("s-file")).toBe("processing");
+  });
+});
+
+describe("processSource: one attempt per source", () => {
+  it("refuses a source that isn't processing (not claimed): not_processing, nothing written", async () => {
+    for (const state of ["uploading", "ready", "failed"]) {
+      addSource({ id: `s-${state}`, status: state });
+      db.chunks.push({ id: `old-${state}`, project_id: PROJECT, source_id: `s-${state}`, content: "old", embedding: "[]" });
+      const result = await processSource({ sourceId: `s-${state}`, projectId: PROJECT, type: "text", text: "Hi." });
+      expect(result, state).toEqual({ status: "failed", reason: "not_processing" });
+      expect(status(`s-${state}`), state).toBe(state);
+      expect(chunksOf(`s-${state}`).map((c) => c.content), state).toEqual(["old"]);
+    }
+    expect(embedTexts).not.toHaveBeenCalled();
+  });
+
+  it("a stale attempt that fails after a newer one finished leaves the newer chunks and status alone", async () => {
+    addSource({ id: "s-race" });
+    // While this (older) attempt waits on OpenAI, a newer attempt finishes: ready + its chunks.
+    embedTexts.mockImplementation(async () => {
+      const source = db.sources.find((s) => s.id === "s-race")!;
+      source.status = "ready";
+      db.chunks.push({ id: "newer-1", project_id: PROJECT, source_id: "s-race", content: "newer", embedding: "[]" });
+      throw new Error("timeout");
+    });
+
+    const result = await processSource({ sourceId: "s-race", projectId: PROJECT, type: "text", text: "Old text." });
+
+    expect(result).toEqual({ status: "failed", reason: "embedding_failed" });
+    expect(status("s-race")).toBe("ready");
+    expect(chunksOf("s-race").map((c) => c.content)).toEqual(["newer"]);
+  });
+
+  it("a stale attempt that fails part-way deletes only the chunks it inserted", async () => {
+    addSource({ id: "s-race2" });
+    db.failInsertOn = 2;
+    let calls = 0;
+    embedTexts.mockImplementation(async (texts) => texts.map(() => [++calls]));
+    const text = longText(1000);
+    // After this attempt's first batch, a newer attempt takes over: ready + its own chunk.
+    const realFrom = fakeSupabase.from;
+    const spy = vi.spyOn(fakeSupabase, "from").mockImplementation((name) => {
+      if (name === "knowledge_chunks" && db.inserts === 1 && !db.chunks.some((c) => c.id === "newer-1")) {
+        db.sources.find((s) => s.id === "s-race2")!.status = "ready";
+        db.chunks.push({ id: "newer-1", project_id: PROJECT, source_id: "s-race2", content: "newer", embedding: "[]" });
+      }
+      return realFrom(name);
+    });
+
+    const result = await processSource({ sourceId: "s-race2", projectId: PROJECT, type: "text", text });
+    spy.mockRestore();
+
+    expect(result).toEqual({ status: "failed", reason: "database_failed" });
+    expect(status("s-race2")).toBe("ready");
+    expect(chunksOf("s-race2").map((c) => c.id)).toEqual(["newer-1"]);
+  });
+
+  it("an attempt whose source stopped processing before it finished removes its own chunks", async () => {
+    addSource({ id: "s-late" });
+    embedTexts.mockImplementation(async (texts) => {
+      db.sources.find((s) => s.id === "s-late")!.status = "failed"; // e.g. another attempt gave up
+      return texts.map(() => [1]);
+    });
+
+    const result = await processSource({ sourceId: "s-late", projectId: PROJECT, type: "text", text: longText(20) });
+
+    expect(result).toEqual({ status: "failed", reason: "not_processing" });
+    expect(status("s-late")).toBe("failed");
+    expect(chunksOf("s-late")).toEqual([]);
   });
 });
 

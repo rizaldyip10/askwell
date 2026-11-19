@@ -10,6 +10,9 @@
  * - `embedding_failed`  OpenAI's embeddings call failed
  * - `database_failed`   writing chunks or the status failed
  * - `source_not_found`  no such source in this project (nothing is written)
+ * - `not_processing`    the source isn't (or is no longer) `processing`: the caller didn't
+ *                       claim it, or another attempt or a delete changed it. This attempt
+ *                       removes only its own chunks and leaves the status alone.
  */
 export type KnowledgeFailureReason =
   | "unreadable"
@@ -19,7 +22,8 @@ export type KnowledgeFailureReason =
   | "download_failed"
   | "embedding_failed"
   | "database_failed"
-  | "source_not_found";
+  | "source_not_found"
+  | "not_processing";
 
 /**
  * A processing failure with its reason. The message never contains document text, so it is

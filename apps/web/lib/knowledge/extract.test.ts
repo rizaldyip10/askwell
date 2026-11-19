@@ -18,7 +18,7 @@ async function reasonOf(fn: () => unknown): Promise<string> {
 
 describe("normalizeText", () => {
   it("unifies line breaks, collapses spaces, trims lines and keeps paragraph breaks", () => {
-    const raw = "  Title\r\n\r\n\r\n\r\nFirst\tline  with   spaces \r\nsecond line\n\n\nNext para  ";
+    const raw = "  Title\r\n\r\n\r\n\r\nFirst\tline  with   spaces \r\nsecond\u00a0line\n\n\nNext para  ";
     expect(normalizeText(raw)).toBe("Title\n\nFirst line with spaces\nsecond line\n\nNext para");
   });
 
