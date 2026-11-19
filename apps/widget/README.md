@@ -45,7 +45,12 @@ The widget only proves itself on a page from **another origin**, the way a custo
 ## Phase 3 check: knowledge → answer → rate limit
 
 Run it on a preview with Lanes A and B merged. Use a **fresh project** (Free has 100 messages a month,
-and this check uses about 25), or reset `messages_used` on dev afterwards.
+and this check uses about 25), or reset `messages_used` on dev afterward. Delete the test project and
+test user when you're done.
+
+**Prerequisite:** the preview needs `ARCJET_KEY` (and `OPENAI_API_KEY`). Without an Arcjet key the
+protection helper fails open, so the 21st message passes. If the limit never triggers, check the
+deployment's logs for Arcjet errors before suspecting the rule.
 
 1. **Make a PDF** with a few clear facts. Headless Chromium can print one from HTML:
    ```bash
@@ -55,7 +60,9 @@ and this check uses about 25), or reset `messages_used` on dev afterwards.
 2. **Upload it.** Sign in on the preview (a `+clerk_test` user, code `424242`) → create a project →
    **Knowledge** → upload the PDF → wait until the source shows **Ready**.
 3. **Install** → copy the snippet → serve it on another origin and drive it with Playwright, as above.
-4. **Check in the panel:**
+4. **Record the baseline** before sending anything: on dev,
+   `select messages_used from projects where public_key = 'pk_…'`.
+5. **Check in the panel:**
 
    | Ask | Expect |
    |---|---|
@@ -63,11 +70,24 @@ and this check uses about 25), or reset `messages_used` on dev afterwards.
    | Something unrelated ("What's the capital of France?") | Exactly `NO_ANSWER_REPLY` (`apps/web/lib/ai/answer.ts`) |
    | 21 messages within one minute | The 21st shows "You're sending messages too fast…" |
 
-   The rate limit is 20 messages a minute per key and IP. One panel waits for each reply (about 2 s),
-   so a single tab can spread 21 sends over two windows and never hit it. Send from 3 tabs of the same
-   page at once.
-5. **Check the count.** On dev, `select messages_used from projects where public_key = 'pk_…'` went up by
-   the number of accepted messages only. Refused (429) messages don't count.
+   The rate limit is a fixed window of 20 messages a minute per key and IP. The questions above can
+   start a window, so **wait at least 61 s after the last one** before the burst; then all 21 sends
+   fall in one fresh window. One panel waits for each reply (about 2 s), so a single tab can spread
+   21 sends over two windows and never hit the limit. Send from 3 tabs of the same page at once
+   (7 each takes about 25 s).
+
+   Order the results by **send** time. A 429 comes back at once while an answer takes 2–3 s, so by
+   arrival time the refusal can show up before the last answers.
+6. **Check the count.** Read `messages_used` again and compare it with the baseline. It goes up by
+   every request that passed the quota count step: refused (429) messages don't count, but a request
+   counted and then failing later (e.g. a 500 from embedding or the model) does. With no 500s, the
+   increase equals the number of answered messages.
+
+Screenshots from the P3K-T09 run:
+
+| PDF ready | Answers | 21st message refused |
+|---|---|---|
+| ![faq.pdf Ready on the Knowledge page](docs/phase3/knowledge-ready.png) | ![Two answers from the PDF and the "I don't know" reply](docs/phase3/panel-answers.png) | ![The 21st message shows the too-fast message](docs/phase3/panel-too-fast.png) |
 
 Notes:
 - Press Escape only after the panel has hydrated (it posts `askwell:ready`). The header is
