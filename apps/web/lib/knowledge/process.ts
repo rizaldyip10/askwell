@@ -52,6 +52,18 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
   try {
     source = await loadSource(supabase, input);
   } catch (error) {
+    // The source isn't this project's, doesn't match, or isn't claimed: not ours to touch.
+    // Any other failure (e.g. a database error reading it) would leave a claimed source
+    // stuck in processing, so it is marked failed, still only if it is processing in
+    // this project.
+    const notOurs =
+      error instanceof KnowledgeProcessingError &&
+      (error.reason === "source_not_found" || error.reason === "not_processing");
+    if (!notOurs) {
+      await cleanupStep(input, "set failed", () =>
+        setStatusIfProcessing(supabase, input.sourceId, input.projectId, "failed"),
+      );
+    }
     return fail(input, error);
   }
 
@@ -88,7 +100,7 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
       inserted.push(...(data ?? []).map((row) => row.id));
     }
 
-    if (!(await setStatusIfProcessing(supabase, source.id, "ready"))) {
+    if (!(await setStatusIfProcessing(supabase, source.id, source.project_id, "ready"))) {
       throw new KnowledgeProcessingError("not_processing", "The source is no longer processing");
     }
     return { status: "ready", chunkCount: chunks.length };
@@ -105,7 +117,7 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
     await cleanupStep(input, "delete older chunks", async () => {
       if (await isProcessing(supabase, source.id)) await deleteChunks(supabase, source.id);
     });
-    await cleanupStep(input, "set failed", () => setStatusIfProcessing(supabase, source.id, "failed"));
+    await cleanupStep(input, "set failed", () => setStatusIfProcessing(supabase, source.id, source.project_id, "failed"));
     return fail(input, error);
   }
 }
@@ -126,16 +138,21 @@ async function isProcessing(supabase: ServiceClient, sourceId: string): Promise<
   return data?.status === "processing";
 }
 
-/** Move the source from `processing` to `status`. False if it wasn't processing (or is gone). */
+/**
+ * Move the source from `processing` to `status`, scoped to its project. False if it wasn't
+ * processing (or is gone, or isn't in that project).
+ */
 async function setStatusIfProcessing(
   supabase: ServiceClient,
   sourceId: string,
+  projectId: string,
   status: "ready" | "failed",
 ): Promise<boolean> {
   const { data, error } = await supabase
     .from("knowledge_sources")
     .update({ status })
     .eq("id", sourceId)
+    .eq("project_id", projectId)
     .eq("status", "processing")
     .select("id");
   if (error) throw dbError(`set ${status}`, error);
