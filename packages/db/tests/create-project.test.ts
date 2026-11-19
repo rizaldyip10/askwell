@@ -1,4 +1,5 @@
 import type { Transaction } from "@electric-sql/pglite";
+import { pageinspect } from "@electric-sql/pglite/contrib/pageinspect";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PLAN_LIMITS } from "../../shared/src/plans";
 import { DEFAULT_WIDGET_CONFIG } from "../../shared/src/widget";
@@ -172,5 +173,67 @@ describe("create_project", () => {
       { role: "authenticated", can: false },
       { role: "service_role", can: true },
     ]);
+  });
+});
+
+// pglite is a single connection, so two calls can't run at once. Instead, check the lock the
+// call leaves on the owner's accounts row: FOR UPDATE marks the tuple with an exclusive,
+// keys-updated lock. Without it, the projects FK check would only take a KEY SHARE lock,
+// which lets a second transaction count the same projects concurrently.
+describe("create_project row lock", () => {
+  let lockDb: TestDb;
+
+  beforeAll(async () => {
+    lockDb = await createTestDb({ extensions: { pageinspect } });
+    await lockDb.pg.exec(`
+      create extension pageinspect;
+      insert into public.accounts (clerk_user_id) values ('${OWNER}');
+    `);
+  });
+
+  afterAll(async () => {
+    await lockDb?.close();
+  });
+
+  /** Lock flags on the owner's accounts tuple, held by the current transaction. Superuser only. */
+  async function accountLockFlags(tx: Transaction): Promise<string[]> {
+    const { rows } = await tx.query<{ flags: string[]; mine: boolean }>(
+      `with t as (select ctid from public.accounts where clerk_user_id = $1)
+       select f.raw_flags as flags, h.t_xmax = pg_current_xact_id()::xid as mine
+       from t,
+         heap_page_items(get_raw_page('public.accounts', (t.ctid::text::point)[0]::int)) h,
+         heap_tuple_infomask_flags(h.t_infomask, h.t_infomask2) f
+       where h.lp = (t.ctid::text::point)[1]::int`,
+      [OWNER],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.mine).toBe(true);
+    return rows[0]?.flags ?? [];
+  }
+
+  it("holds FOR UPDATE on the owner's accounts row until the transaction ends", async () => {
+    const flags = await lockDb.as("service_role", { role: "service_role" }, async (tx) => {
+      await create(tx, OWNER, PRO_MAX);
+      await tx.exec("reset role");
+      return accountLockFlags(tx);
+    });
+    expect(flags).toEqual(
+      expect.arrayContaining(["HEAP_XMAX_LOCK_ONLY", "HEAP_XMAX_EXCL_LOCK", "HEAP_KEYS_UPDATED"]),
+    );
+  });
+
+  it("control: a plain project insert only takes the FK's key-share lock", async () => {
+    const flags = await lockDb.pg.transaction(async (tx) => {
+      await tx.query(
+        "insert into public.projects (owner_id, name, public_key) values ($1, 'x', 'pk_controlinsert0000000')",
+        [OWNER],
+      );
+      const result = await accountLockFlags(tx);
+      await tx.rollback();
+      return result;
+    });
+    expect(flags).toContain("HEAP_XMAX_KEYSHR_LOCK");
+    expect(flags).not.toContain("HEAP_KEYS_UPDATED");
+    expect(flags).not.toContain("HEAP_XMAX_EXCL_LOCK");
   });
 });

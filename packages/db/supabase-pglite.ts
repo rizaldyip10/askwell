@@ -12,7 +12,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PGlite, type Results, type Transaction } from "@electric-sql/pglite";
+import { PGlite, type Extensions, type Results, type Transaction } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite-pgvector";
 
 export const MIGRATIONS_DIR = fileURLToPath(new URL("../../supabase/migrations", import.meta.url));
@@ -71,9 +71,14 @@ export async function applyMigrations(pg: PGlite, dir = MIGRATIONS_DIR): Promise
   return files;
 }
 
-/** Boot a fresh Supabase-like PGlite and apply all migrations. */
-export async function createTestDb(options: { migrationsDir?: string } = {}): Promise<TestDb> {
-  const pg = await PGlite.create({ extensions: { vector } });
+/**
+ * Boot a fresh Supabase-like PGlite and apply all migrations.
+ * `extensions` adds PGlite extensions (e.g. a contrib module for a test) next to pgvector.
+ */
+export async function createTestDb(
+  options: { migrationsDir?: string; extensions?: Extensions } = {},
+): Promise<TestDb> {
+  const pg = await PGlite.create({ extensions: { ...options.extensions, vector } });
   await pg.exec(SUPABASE_STUB);
   await applyMigrations(pg, options.migrationsDir);
 
