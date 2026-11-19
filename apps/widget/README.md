@@ -76,8 +76,9 @@ deployment's logs for Arcjet errors before suspecting the rule.
    21 sends over two windows and never hit the limit. Send from 3 tabs of the same page at once
    (7 each takes about 25 s).
 
-   Order the results by **send** time. A 429 comes back at once while an answer takes 2–3 s, so by
-   arrival time the refusal can show up before the last answers.
+   Pass if the 21 sends give **20 answers and exactly one "too fast"** refusal. Don't check which send
+   was refused: with three tabs, requests can reach the limiter out of send order, and a 429 comes back
+   at once while an answer takes 2–3 s, so neither send order nor arrival order is the limiter's order.
 6. **Check the count.** Read `messages_used` again and compare it with the baseline. It goes up by
    every request that passed the quota count step: refused (429) messages don't count, but a request
    counted and then failing later (e.g. a 500 from embedding or the model) does. With no 500s, the
