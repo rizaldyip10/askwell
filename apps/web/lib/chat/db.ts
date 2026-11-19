@@ -102,8 +102,8 @@ export async function saveChatTurn(
 ): Promise<SaveResult> {
   const { data, error } = await service.rpc("save_chat_turn", {
     p_project_id: turn.projectId,
-    // The generated types mark every argument non-null; the function takes null for a new conversation.
-    p_conversation_id: turn.conversationId as string,
+    // null starts a new conversation (typed nullable in packages/db/index.ts).
+    p_conversation_id: turn.conversationId,
     p_visitor_id: turn.visitorId,
     p_visitor_message: turn.message,
     p_bot_reply: turn.reply,
