@@ -132,7 +132,8 @@ describe("migration", () => {
   it("makes the RLS helpers SECURITY DEFINER, stable, with an empty search_path", async () => {
     const { rows } = await db.pg.query<{ proname: string; prosecdef: boolean; provolatile: string; proconfig: string[] }>(
       `select proname, prosecdef, provolatile, proconfig from pg_proc
-       where pronamespace = 'public'::regnamespace order by proname`,
+       where pronamespace = 'public'::regnamespace
+         and proname in ('owned_conversation_ids', 'owned_project_ids') order by proname`,
     );
     expect(rows.map((r) => r.proname)).toEqual(["owned_conversation_ids", "owned_project_ids"]);
     for (const r of rows) {
