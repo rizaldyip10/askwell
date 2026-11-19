@@ -25,9 +25,10 @@ describe("projectNavItems", () => {
   const ID = "6f1c2a4e-8b3d-4c5e-9f7a-1b2c3d4e5f60";
   const base = `/dashboard/projects/${ID}`;
 
-  it("has Overview and Install, in order", () => {
+  it("has Overview, Knowledge and Install, in order", () => {
     expect(projectNavItems(ID)).toEqual([
       { href: base, label: "Overview" },
+      { href: `${base}/knowledge`, label: "Knowledge" },
       { href: `${base}/install`, label: "Install" },
     ]);
   });
@@ -39,9 +40,12 @@ describe("projectNavItems", () => {
   it("highlights the matching section", () => {
     const items = projectNavItems(ID);
     expect(activeNavHref(base, items)).toBe(base);
+    expect(activeNavHref(`${base}/knowledge`, items)).toBe(`${base}/knowledge`);
     expect(activeNavHref(`${base}/install`, items)).toBe(`${base}/install`);
     // A future section without its own nav entry falls back to Overview.
-    expect(activeNavHref(`${base}/knowledge`, items)).toBe(base);
+    expect(activeNavHref(`${base}/conversations`, items)).toBe(base);
+    // A similar-looking path doesn't match Knowledge.
+    expect(activeNavHref(`${base}/knowledgebase`, items)).toBe(base);
     expect(activeNavHref("/dashboard/billing", items)).toBeNull();
   });
 
