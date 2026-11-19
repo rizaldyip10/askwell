@@ -1,13 +1,16 @@
 import { DEFAULT_WIDGET_CONFIG } from "@askwell/shared";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { protectWidgetConfig } from "../../../../lib/security";
 import { getWidgetConfigByKey } from "../../../../lib/widget/config";
 import { GET, OPTIONS } from "./route";
 
 vi.mock("../../../../lib/widget/config", () => ({ getWidgetConfigByKey: vi.fn() }));
+vi.mock("../../../../lib/security", () => ({ protectWidgetConfig: vi.fn() }));
 
 const KEY = "pk_a1b2c3d4e5f6a7b8c9d0e1f2";
 const lookup = vi.mocked(getWidgetConfigByKey);
+const protect = vi.mocked(protectWidgetConfig);
 
 const get = (query: string) => GET(new NextRequest(`https://askwell.test/api/widget/config${query}`));
 
@@ -18,6 +21,8 @@ function expectCors(res: Response) {
 
 beforeEach(() => {
   lookup.mockReset();
+  protect.mockReset();
+  protect.mockResolvedValue({ allowed: true });
 });
 
 describe("GET /api/widget/config", () => {
@@ -49,6 +54,18 @@ describe("GET /api/widget/config", () => {
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: { code: "not_found", message: expect.any(String) } });
     expect(res.headers.get("cache-control")).toBe("no-store");
+    expectCors(res);
+  });
+
+  it("429 rate_limited when Arcjet blocks, with CORS, without a lookup", async () => {
+    protect.mockResolvedValue({ allowed: false, reason: "rate_limit" });
+    const res = await get(`?key=${KEY}`);
+
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ error: { code: "rate_limited", message: expect.any(String) } });
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(protect).toHaveBeenCalledWith(expect.any(Request), { publicKey: KEY });
+    expect(lookup).not.toHaveBeenCalled();
     expectCors(res);
   });
 
