@@ -29,12 +29,18 @@ type NullableKeys<T, K extends keyof T> = { [P in keyof T]: P extends K ? T[P] |
 
 type GeneratedFunctions = GeneratedDatabase["public"]["Functions"];
 type ReserveKnowledgeSource = GeneratedFunctions["reserve_knowledge_source"];
+type SaveChatTurn = GeneratedFunctions["save_chat_turn"];
 
 type FunctionOverrides = {
   // Pasted text has no file: p_storage_key is null, and so is the returned storage_key.
   reserve_knowledge_source: {
     Args: NullableKeys<ReserveKnowledgeSource["Args"], "p_storage_key">;
     Returns: NullableKeys<ReserveKnowledgeSource["Returns"][number], "storage_key">[];
+  };
+  // A visitor's first message has no conversation yet: p_conversation_id null creates one.
+  save_chat_turn: {
+    Args: NullableKeys<SaveChatTurn["Args"], "p_conversation_id">;
+    Returns: SaveChatTurn["Returns"];
   };
 };
 
