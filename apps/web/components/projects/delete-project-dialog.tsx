@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { requestJson } from "./api";
 import { Dialog } from "./dialog";
 import { FieldError } from "./field";
+import { useMountedRef } from "./use-mounted-ref";
 
 type DeleteProjectDialogProps = {
   project: Project;
@@ -36,12 +37,18 @@ function DeleteActions({ project, onCancel, onDeleted }: { project: Project; onC
   const [sending, setSending] = useState(false);
   const [refreshing, startRefresh] = useTransition();
   const busy = sending || refreshing;
+  const mounted = useMountedRef();
 
   async function onConfirm() {
     if (busy) return;
     setSending(true);
     setError(null);
     const result = await requestJson<DeleteProjectResponse>("DELETE", `/api/projects/${project.id}`);
+    if (!mounted.current) {
+      // The dialog was dismissed meanwhile. Show the new data, but leave any reopened dialog alone.
+      if (result.ok || result.code === "not_found") router.refresh();
+      return;
+    }
     setSending(false);
 
     // 404: it's already gone (another tab, or deleted elsewhere). Same outcome as a delete.

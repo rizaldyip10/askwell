@@ -38,7 +38,8 @@ export function CreateProjectForm({ className, autoFocus }: { className?: string
     setSending(false);
 
     if (!result.ok) return setError(formError(result));
-    setName("");
+    // Clear the field only if it still holds what was sent: keep a draft typed meanwhile.
+    setName((current) => (current === name ? "" : current));
     startRefresh(() => router.refresh());
   }
 
@@ -52,7 +53,10 @@ export function CreateProjectForm({ className, autoFocus }: { className?: string
           id={inputId}
           name="name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setError(null);
+          }}
           placeholder="My website"
           maxLength={PROJECT_NAME_MAX_LENGTH}
           autoComplete="off"

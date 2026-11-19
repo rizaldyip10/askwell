@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { requestJson, validateProjectName } from "./api";
 import { Dialog } from "./dialog";
 import { FieldError, TextInput } from "./field";
+import { useMountedRef } from "./use-mounted-ref";
 
 export function RenameProjectDialog({ project, open, onClose }: { project: Project; open: boolean; onClose: () => void }) {
   return (
@@ -25,6 +26,7 @@ function RenameForm({ project, onDone }: { project: Project; onDone: () => void 
   const [sending, setSending] = useState(false);
   const [refreshing, startRefresh] = useTransition();
   const busy = sending || refreshing;
+  const mounted = useMountedRef();
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,6 +38,11 @@ function RenameForm({ project, onDone }: { project: Project; onDone: () => void 
     setSending(true);
     setError(null);
     const result = await requestJson<RenameProjectResponse>("PATCH", `/api/projects/${project.id}`, { name: checked.name });
+    if (!mounted.current) {
+      // The dialog was dismissed meanwhile. Show the new data, but leave any reopened dialog alone.
+      if (result.ok) router.refresh();
+      return;
+    }
     setSending(false);
 
     if (!result.ok) return setError(result.message);
@@ -53,7 +60,10 @@ function RenameForm({ project, onDone }: { project: Project; onDone: () => void 
       <TextInput
         id={inputId}
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => {
+          setName(e.target.value);
+          setError(null);
+        }}
         maxLength={PROJECT_NAME_MAX_LENGTH}
         autoComplete="off"
         autoFocus

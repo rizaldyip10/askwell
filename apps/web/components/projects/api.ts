@@ -55,7 +55,8 @@ export async function requestJson<T>(
   try {
     json = await res.json();
   } catch {
-    json = undefined;
+    // These routes always answer JSON. An unreadable body is never a success.
+    return res.ok ? { ok: false, status: res.status, code: "internal", message: GENERIC_ERROR } : toApiFailure(res.status, undefined);
   }
   if (res.ok) return { ok: true, data: json as T };
   return toApiFailure(res.status, json);

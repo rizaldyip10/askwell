@@ -80,6 +80,16 @@ describe("requestJson", () => {
     const html = vi.fn(async () => new Response("<html>", { status: 502 }));
     expect(await requestJson("GET", "/x", undefined, html as typeof fetch)).toMatchObject({ ok: false, status: 502, code: "internal" });
   });
+
+  it("a 2xx with an unreadable body is a failure, not a success", async () => {
+    const html200 = vi.fn(async () => new Response("<html>login page</html>", { status: 200 }));
+    expect(await requestJson("POST", "/api/projects", { name: "x" }, html200 as typeof fetch)).toEqual({
+      ok: false,
+      status: 200,
+      code: "internal",
+      message: GENERIC_ERROR,
+    });
+  });
 });
 
 describe("validateProjectName", () => {
