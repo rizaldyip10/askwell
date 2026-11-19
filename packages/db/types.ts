@@ -251,6 +251,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_message: {
+        Args: { p_max_messages: number; p_project_id: string }
+        Returns: number
+      }
+      conversation_belongs: {
+        Args: { p_conversation_id: string; p_project_id: string }
+        Returns: boolean
+      }
       create_project: {
         Args: {
           p_animation: string
@@ -293,6 +301,10 @@ export type Database = {
           source_id: string
         }[]
       }
+      message_period_start: {
+        Args: { p_now: string; p_period_start: string }
+        Returns: string
+      }
       owned_conversation_ids: { Args: never; Returns: string[] }
       owned_project_ids: { Args: never; Returns: string[] }
       reserve_knowledge_source: {
@@ -314,6 +326,16 @@ export type Database = {
           title: string
           type: string
         }[]
+      }
+      save_chat_turn: {
+        Args: {
+          p_bot_reply: string
+          p_conversation_id: string
+          p_project_id: string
+          p_visitor_id: string
+          p_visitor_message: string
+        }
+        Returns: string
       }
     }
     Enums: {
