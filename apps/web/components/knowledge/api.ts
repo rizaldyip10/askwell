@@ -24,7 +24,8 @@ export type UploadStep = "reserving" | "uploading" | "finalizing";
 
 /**
  * upload-url → PUT the file to the signed URL → finalize. `onStep` reports progress. If the
- * PUT fails, the reservation is deleted so it doesn't hold a slot.
+ * PUT or finalize fails, the reservation is deleted so it doesn't hold a slot or linger as
+ * Processing; the owner retries by picking the file again.
  */
 export async function uploadKnowledgeFile(
   projectId: string,
@@ -65,10 +66,17 @@ export async function uploadKnowledgeFile(
   }
 
   onStep("finalizing");
-  return requestJson<FinalizeKnowledgeResponse>(
+  const finalized = await requestJson<FinalizeKnowledgeResponse>(
     "POST",
     `/api/projects/${projectId}/knowledge/finalize`,
     { sourceId: source.id },
     fetchImpl,
   );
+  if (!finalized.ok) {
+    // E.g. "not uploaded yet": the server put the source back to `uploading`, where it would
+    // sit as Processing and hold a slot. Remove it; the owner picks the file again to retry.
+    // (A refused file is already deleted by the server: this is then a harmless 404.)
+    await requestJson<DeleteKnowledgeResponse>("DELETE", `/api/knowledge/${source.id}`, undefined, fetchImpl);
+  }
+  return finalized;
 }

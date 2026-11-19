@@ -69,13 +69,41 @@ describe("uploadKnowledgeFile", () => {
     ]);
   });
 
-  it("returns finalize's refusal (e.g. not a real PDF)", async () => {
+  it("returns finalize's refusal (e.g. not a real PDF); the follow-up delete is a harmless 404", async () => {
     const fetchImpl = fakeFetch({
       "/upload-url": () => json({ source: source("uploading"), upload: { signedUrl: SIGNED, token: "t", path: "p/x.pdf" } }, 201),
       "storage.test": () => new Response("{}"),
       "/finalize": () => json({ error: { code: "validation_error", message: "File is not a valid PDF" } }, 400),
+      [`/api/knowledge/${SOURCE}`]: () => json({ error: { code: "not_found", message: "Knowledge source not found" } }, 404),
     });
     const result = await uploadKnowledgeFile(PROJECT, file, "pdf", undefined, fetchImpl);
     expect(result).toMatchObject({ ok: false, code: "validation_error", message: "File is not a valid PDF" });
+  });
+
+  it("finalize 'not uploaded yet' (source back to uploading): deletes the reservation so it can't linger", async () => {
+    const notUploaded = "The file hasn't been uploaded yet. Upload it, then try again.";
+    const fetchImpl = fakeFetch({
+      "/upload-url": () => json({ source: source("uploading"), upload: { signedUrl: SIGNED, token: "t", path: "p/x.md" } }, 201),
+      "storage.test": () => new Response("{}"),
+      "/finalize": () => json({ error: { code: "validation_error", message: notUploaded } }, 400),
+      [`/api/knowledge/${SOURCE}`]: () => json({ ok: true }),
+    });
+
+    const result = await uploadKnowledgeFile(PROJECT, file, "md", undefined, fetchImpl);
+
+    expect(result).toMatchObject({ ok: false, code: "validation_error", message: notUploaded });
+    expect(fetchImpl.mock.calls.map(([u, init]) => `${init?.method} ${String(u)}`).at(-1)).toBe(
+      `DELETE /api/knowledge/${SOURCE}`,
+    );
+  });
+
+  it("a successful finalize deletes nothing", async () => {
+    const fetchImpl = fakeFetch({
+      "/upload-url": () => json({ source: source("uploading"), upload: { signedUrl: SIGNED, token: "t", path: "p/x.md" } }, 201),
+      "storage.test": () => new Response("{}"),
+      "/finalize": () => json({ source: source("processing") }),
+    });
+    await uploadKnowledgeFile(PROJECT, file, "md", undefined, fetchImpl);
+    expect(fetchImpl.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
   });
 });
