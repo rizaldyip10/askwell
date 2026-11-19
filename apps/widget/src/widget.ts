@@ -39,7 +39,7 @@ export function clampHeight(height: number, viewportHeight: number): number {
 export function mountWidget(setup: LoaderSetup, config: WidgetConfig, win: Window = window): WidgetHandle {
   const doc = win.document;
   const host = doc.createElement(HOST_TAG);
-  const root = host.attachShadow({ mode: "closed" });
+  const root = host.attachShadow({ mode: "open" });
 
   const style = doc.createElement("style");
   style.textContent = STYLES;
