@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { isTrustedHostMessage, postToHost } from "./messaging";
+import { closeOnEscape, isTrustedHostMessage, postToHost } from "./messaging";
 
 const ORIGIN = "https://example.com";
 
@@ -30,4 +30,19 @@ describe("isTrustedHostMessage", () => {
       expect(isTrustedHostMessage({ origin: ORIGIN, data }, ORIGIN)).toBe(false);
     },
   );
+});
+
+describe("closeOnEscape", () => {
+  it("posts askwell:close to the host origin only", () => {
+    const target = { postMessage: vi.fn() };
+    closeOnEscape(target, ORIGIN)({ key: "Escape" });
+    expect(target.postMessage).toHaveBeenCalledTimes(1);
+    expect(target.postMessage).toHaveBeenCalledWith({ type: "askwell:close" }, ORIGIN);
+  });
+
+  it.each(["Enter", "a", "Esc"])("ignores %s", (key) => {
+    const target = { postMessage: vi.fn() };
+    closeOnEscape(target, ORIGIN)({ key });
+    expect(target.postMessage).not.toHaveBeenCalled();
+  });
 });

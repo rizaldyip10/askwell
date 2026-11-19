@@ -4,7 +4,7 @@ import { APP_NAME, MESSAGE_MAX_LENGTH, type WidgetConfig } from "@askwell/shared
 import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
 import { chatErrorMessage, sendChatMessage } from "../../lib/embed/chat-client";
 import { chatReducer, INITIAL_CHAT_STATE } from "../../lib/embed/chat-state";
-import { postToHost } from "../../lib/embed/messaging";
+import { closeOnEscape, postToHost } from "../../lib/embed/messaging";
 import { getVisitorId } from "../../lib/embed/visitor-id";
 import { MessageBubble, TypingIndicator } from "./message-bubble";
 import { usePanelHidden } from "./use-panel-hidden";
@@ -34,11 +34,8 @@ export function ChatPanel({ config, publicKey, origin }: ChatPanelProps) {
     postToHost(window.parent, origin, { type: "askwell:ready" });
   }, [origin]);
 
-  // Focus is inside the iframe while the panel is open, so the loader can't see Escape. Ask it to close.
   useEffect(() => {
-    const onKeydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") postToHost(window.parent, origin, { type: "askwell:close" });
-    };
+    const onKeydown = closeOnEscape(window.parent, origin);
     document.addEventListener("keydown", onKeydown);
     return () => document.removeEventListener("keydown", onKeydown);
   }, [origin]);
