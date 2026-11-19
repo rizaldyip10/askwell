@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 const create = vi.fn();
 vi.mock("./client", () => ({ getOpenAI: () => ({ embeddings: { create } }) }));
 
-const { EMBEDDING_MODEL, MAX_CHARS_PER_REQUEST, MAX_INPUTS_PER_REQUEST, batchTexts, embedText, embedTexts } =
+const { EMBEDDING_MODEL, MAX_BYTES_PER_REQUEST, MAX_INPUTS_PER_REQUEST, batchTexts, embedText, embedTexts, utf8Bytes } =
   await import("./embeddings");
 
 /** Fake vector whose first value is the text's id (`t<id>`), so order is checkable. Returned reversed. */
@@ -27,11 +27,30 @@ describe("batchTexts", () => {
     expect(batches.flat()).toEqual(texts);
   });
 
-  it("splits at the character budget, and an oversized text goes alone", () => {
-    const half = "a".repeat(MAX_CHARS_PER_REQUEST / 2);
-    const huge = "b".repeat(MAX_CHARS_PER_REQUEST + 1);
+  it("splits at the byte budget, and an oversized text goes alone", () => {
+    const half = "a".repeat(MAX_BYTES_PER_REQUEST / 2);
+    const huge = "b".repeat(MAX_BYTES_PER_REQUEST + 1);
     const batches = batchTexts([half, half, "x", huge, "y"]);
     expect(batches).toEqual([[half, half], ["x"], [huge], ["y"]]);
+  });
+
+  it("counts multibyte text by UTF-8 bytes, not characters", () => {
+    // "誕" is 1 character but 3 UTF-8 bytes (and up to 3 cl100k_base tokens).
+    const cjk = "誕".repeat(2000); // 2,000 chars, 6,000 bytes
+    expect(utf8Bytes(cjk)).toBe(6000);
+    const texts = Array.from({ length: 100 }, (_, i) => `${cjk}${i}`);
+    const batches = batchTexts(texts);
+    // 100 × ~6,000 bytes = ~600,000 bytes → must split; a char budget would have sent one batch.
+    expect(batches.length).toBeGreaterThan(1);
+    for (const batch of batches) {
+      expect(batch.reduce((n, t) => n + utf8Bytes(t), 0)).toBeLessThanOrEqual(MAX_BYTES_PER_REQUEST);
+    }
+    expect(batches.flat()).toEqual(texts);
+  });
+
+  it("fills a batch exactly to the byte budget", () => {
+    const emoji = "😀".repeat(MAX_BYTES_PER_REQUEST / 4); // 4 bytes each
+    expect(batchTexts([emoji, "z"])).toEqual([[emoji], ["z"]]);
   });
 
   it("returns no batches for no texts", () => {

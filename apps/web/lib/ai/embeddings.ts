@@ -9,26 +9,36 @@ export const EMBEDDING_DIMENSIONS = 1536;
 /** OpenAI's embeddings limits: at most 2048 inputs and 300,000 tokens per request. */
 export const MAX_INPUTS_PER_REQUEST = 2048;
 /**
- * Character budget per request. A token is at least one character, so 300,000 characters
- * can never exceed the 300,000-token limit, whatever the language.
+ * UTF-8 byte budget per request. The model's tokenizer (cl100k_base) is byte-level BPE, so every
+ * token covers at least one UTF-8 byte. 300,000 bytes can never exceed the 300,000-token limit,
+ * whatever the language. (A character budget can't promise that: one multibyte character can
+ * become several tokens.)
  */
-export const MAX_CHARS_PER_REQUEST = 300_000;
+export const MAX_BYTES_PER_REQUEST = 300_000;
+
+const utf8 = new TextEncoder();
+
+/** UTF-8 length of a string, an upper bound on its cl100k_base token count. */
+export function utf8Bytes(text: string): number {
+  return utf8.encode(text).length;
+}
 
 /** Split texts into request-sized batches, keeping order. A text over the budget goes alone. */
 export function batchTexts(texts: string[]): string[][] {
   const batches: string[][] = [];
   let current: string[] = [];
-  let chars = 0;
+  let bytes = 0;
 
   for (const text of texts) {
-    const full = current.length >= MAX_INPUTS_PER_REQUEST || chars + text.length > MAX_CHARS_PER_REQUEST;
+    const size = utf8Bytes(text);
+    const full = current.length >= MAX_INPUTS_PER_REQUEST || bytes + size > MAX_BYTES_PER_REQUEST;
     if (current.length > 0 && full) {
       batches.push(current);
       current = [];
-      chars = 0;
+      bytes = 0;
     }
     current.push(text);
-    chars += text.length;
+    bytes += size;
   }
   if (current.length > 0) batches.push(current);
   return batches;
