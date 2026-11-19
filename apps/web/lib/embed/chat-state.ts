@@ -9,7 +9,8 @@ export type ChatState = {
 export type ChatAction =
   | { type: "sent"; id: string; text: string }
   | { type: "replied"; id: string; text: string; conversationId: string }
-  | { type: "failed"; id: string; text: string };
+  /** `resetConversation`: drop the conversation, so the next send starts a new one (a 404). */
+  | { type: "failed"; id: string; text: string; resetConversation?: boolean };
 
 export const INITIAL_CHAT_STATE: ChatState = { messages: [], waiting: false };
 
@@ -24,6 +25,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         messages: [...state.messages, { id: action.id, role: "bot", text: action.text }],
       };
     case "failed":
-      return { ...state, waiting: false, messages: [...state.messages, { id: action.id, role: "error", text: action.text }] };
+      return {
+        waiting: false,
+        // Kept in panel state only, until the page reloads (product owner decision).
+        conversationId: action.resetConversation ? undefined : state.conversationId,
+        messages: [...state.messages, { id: action.id, role: "error", text: action.text }],
+      };
   }
 }

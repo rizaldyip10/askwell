@@ -23,4 +23,12 @@ describe("chatReducer", () => {
     expect(s.conversationId).toBe("c1");
     expect(s.messages.at(-1)).toEqual({ id: "2", role: "error", text: "Something went wrong, try again." });
   });
+
+  it("failed with resetConversation → drops the conversation", () => {
+    let s = chatReducer({ ...INITIAL_CHAT_STATE, conversationId: "c1" }, { type: "sent", id: "1", text: "Hi" });
+    s = chatReducer(s, { type: "failed", id: "2", text: "Restarted", resetConversation: true });
+    expect(s.waiting).toBe(false);
+    expect(s.conversationId).toBeUndefined();
+    expect(s.messages).toHaveLength(2);
+  });
 });
