@@ -39,7 +39,7 @@ export default async function ProjectOverviewPage({ params }: Props) {
             Identifies this project&apos;s widget. It&apos;s safe to put on your site: it grants no access to your account.
           </p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <code className="min-w-0 flex-1 truncate rounded-control border border-glass-line bg-glass-strong px-3 py-2.5 font-mono text-sm">
+            <code className="min-w-0 flex-1 rounded-control break-all border border-glass-line bg-glass-strong px-3 py-2.5 font-mono text-sm">
               {project.publicKey}
             </code>
             <CopyButton value={project.publicKey} label="Copy key" />
