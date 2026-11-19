@@ -31,11 +31,24 @@ describe("getVisitorId", () => {
     expect(storage.getItem(VISITOR_ID_STORAGE_KEY)).toBe(id);
   });
 
-  it("reuses the stored ID", () => {
+  it("reuses the stored ID on a new page load", () => {
     const stored = crypto.randomUUID();
     const storage = memoryStorage({ [VISITOR_ID_STORAGE_KEY]: stored });
     expect(getVisitorId(() => storage)).toBe(stored);
+    resetVisitorIdMemory();
     expect(getVisitorId(() => storage)).toBe(stored);
+  });
+
+  it("stays stable when storage starts throwing mid-session", () => {
+    const storage = memoryStorage({ [VISITOR_ID_STORAGE_KEY]: crypto.randomUUID() });
+    const id = getVisitorId(() => storage);
+    expect(getVisitorId(throwing)).toBe(id);
+  });
+
+  it("stays stable when storage becomes available mid-session", () => {
+    const id = getVisitorId(throwing);
+    const other = memoryStorage({ [VISITOR_ID_STORAGE_KEY]: crypto.randomUUID() });
+    expect(getVisitorId(() => other)).toBe(id);
   });
 
   it("replaces a stored value that isn't a UUID", () => {

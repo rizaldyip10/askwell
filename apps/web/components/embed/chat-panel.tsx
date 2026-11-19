@@ -38,8 +38,12 @@ export function ChatPanel({ config, publicKey, origin }: ChatPanelProps) {
     listRef.current?.lastElementChild?.scrollIntoView({ block: "end" });
   }, [state.messages.length, state.waiting]);
 
+  // After a reply, return focus to the input, unless the visitor has moved to another control.
+  // The input was disabled while waiting, so it lost focus to <body>.
   useEffect(() => {
-    if (!state.waiting) inputRef.current?.focus();
+    if (state.waiting) return;
+    const active = document.activeElement;
+    if (!active || active === document.body) inputRef.current?.focus();
   }, [state.waiting]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {

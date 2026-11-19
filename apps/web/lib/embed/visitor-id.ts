@@ -2,28 +2,38 @@ import { idSchema } from "@askwell/shared";
 
 export const VISITOR_ID_STORAGE_KEY = "askwell:visitorId";
 
-let memoryId: string | null = null;
+let pageId: string | null = null;
 
-/**
- * A random visitor ID kept in the iframe's localStorage and reused across visits.
- * Third-party iframes may have storage blocked or partitioned: then the ID lives
- * in memory for this page load only.
- */
-export function getVisitorId(getStorage: () => Storage = () => window.localStorage): string {
+function readStored(getStorage: () => Storage): string | null {
   try {
-    const storage = getStorage();
-    const stored = storage.getItem(VISITOR_ID_STORAGE_KEY);
-    if (stored && idSchema.safeParse(stored).success) return stored;
-    const id = crypto.randomUUID();
-    storage.setItem(VISITOR_ID_STORAGE_KEY, id);
-    return id;
+    const stored = getStorage().getItem(VISITOR_ID_STORAGE_KEY);
+    return stored && idSchema.safeParse(stored).success ? stored : null;
   } catch {
-    memoryId ??= crypto.randomUUID();
-    return memoryId;
+    return null;
   }
 }
 
-/** Test-only: forget the in-memory fallback. */
+/**
+ * A random visitor ID kept in the iframe's localStorage and reused across visits.
+ * Resolved once per page load and then kept in memory, so it stays stable even if
+ * storage access starts or stops failing mid-session. Third-party iframes may have
+ * storage blocked or partitioned: then the ID lasts for this page load only.
+ */
+export function getVisitorId(getStorage: () => Storage = () => window.localStorage): string {
+  if (pageId) return pageId;
+  const stored = readStored(getStorage);
+  if (stored) return (pageId = stored);
+  const id = crypto.randomUUID();
+  pageId = id;
+  try {
+    getStorage().setItem(VISITOR_ID_STORAGE_KEY, id);
+  } catch {
+    // Storage blocked or full: the in-memory ID still serves this page load.
+  }
+  return id;
+}
+
+/** Test-only: forget the ID resolved for this page load. */
 export function resetVisitorIdMemory(): void {
-  memoryId = null;
+  pageId = null;
 }
