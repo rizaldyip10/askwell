@@ -301,6 +301,10 @@ export type Database = {
           source_id: string
         }[]
       }
+      message_period_start: {
+        Args: { p_now: string; p_period_start: string }
+        Returns: string
+      }
       owned_conversation_ids: { Args: never; Returns: string[] }
       owned_project_ids: { Args: never; Returns: string[] }
       reserve_knowledge_source: {

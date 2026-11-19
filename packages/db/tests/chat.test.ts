@@ -8,6 +8,7 @@ const OWNER = "user_chat";
 const PROJECT = "00000000-0000-4000-8000-00000000d001";
 const OTHER_PROJECT = "00000000-0000-4000-8000-00000000d002";
 const MISSING_PROJECT = "00000000-0000-4000-8000-00000000dfff";
+const CONVERSATION = "00000000-0000-4000-8000-00000000e001";
 const FREE_MAX = PLAN_LIMITS.free.messagesPerMonth;
 const PRO_MAX = PLAN_LIMITS.pro.messagesPerMonth;
 
@@ -77,16 +78,17 @@ afterAll(async () => {
 });
 
 describe("function settings and grants", () => {
-  it("all three are SECURITY INVOKER with an empty search_path", async () => {
+  it("all are SECURITY INVOKER with an empty search_path", async () => {
     const { rows } = await db.pg.query<{ proname: string; prosecdef: boolean; provolatile: string; proconfig: string[] }>(
       `select proname, prosecdef, provolatile, proconfig from pg_proc
        where pronamespace = 'public'::regnamespace
-         and proname in ('consume_message', 'conversation_belongs', 'save_chat_turn')
+         and proname in ('consume_message', 'conversation_belongs', 'message_period_start', 'save_chat_turn')
        order by proname`,
     );
     expect(rows).toEqual([
       { proname: "consume_message", prosecdef: false, provolatile: "v", proconfig: ['search_path=""'] },
       { proname: "conversation_belongs", prosecdef: false, provolatile: "s", proconfig: ['search_path=""'] },
+      { proname: "message_period_start", prosecdef: false, provolatile: "s", proconfig: ['search_path=""'] },
       { proname: "save_chat_turn", prosecdef: false, provolatile: "v", proconfig: ['search_path=""'] },
     ]);
   });
@@ -94,6 +96,7 @@ describe("function settings and grants", () => {
   it.each([
     ["public.consume_message(uuid, integer)"],
     ["public.conversation_belongs(uuid, uuid)"],
+    ["public.message_period_start(timestamptz, timestamptz)"],
     ["public.save_chat_turn(uuid, uuid, text, text, text)"],
   ])("grants EXECUTE on %s to service_role only", async (fn) => {
     const { rows } = await db.pg.query<{ role: string; can: boolean }>(
@@ -219,6 +222,16 @@ describe("consume_message monthly reset", () => {
     expect(result).toEqual({ err: null, used: 1, stepped: true, current: true });
   });
 
+  it("after a reset, the next call at the limit is refused, not reset again", async () => {
+    const result = await asService(async (tx) => {
+      await setUsage(tx, 0, "2 months 3 days");
+      const first = await consume(tx, 1);
+      return { first, second: await caught(tx, () => consume(tx, 1)) };
+    });
+    expect(result.first).toBe(1);
+    expect(result.second).toMatchObject({ code: "P0001", message: "quota_exceeded" });
+  });
+
   it("then counts normally in the new period", async () => {
     const result = await asService(async (tx) => {
       await setUsage(tx, FREE_MAX, "2 months 1 day");
@@ -239,12 +252,66 @@ describe("consume_message monthly reset", () => {
   });
 });
 
-// pglite is a single connection, so two calls can't run at once. Instead, check the lock the
-// call leaves on the project row. SELECT ... FOR UPDATE marks the tuple with HEAP_KEYS_UPDATED,
-// and the UPDATE that follows in the same transaction keeps that flag on the old row version.
-// A read-then-update without the lock (or a plain UPDATE) only takes a no-key update lock, so
-// two transactions at limit - 1 could both read the old count and both pass.
-describe("consume_message row lock", () => {
+describe("message_period_start", () => {
+  /** message_period_start(start, now) in UTC, as an ISO string. */
+  const periodStart = (start: string, now: string) =>
+    asService(async (tx) => {
+      await tx.exec("set local timezone = 'UTC'");
+      const { rows } = await tx.query<{ s: string }>(
+        `select to_char(public.message_period_start($1::timestamptz, $2::timestamptz) at time zone 'UTC',
+                        'YYYY-MM-DD HH24:MI') as s`,
+        [start, now],
+      );
+      return rows[0]?.s;
+    });
+
+  it.each([
+    ["inside the month: unchanged", "2026-01-15 10:00", "2026-02-15 09:59", "2026-01-15 10:00"],
+    ["exactly a month later: one step", "2026-01-15 10:00", "2026-02-15 10:00", "2026-02-15 10:00"],
+    ["long idle: whole months, same day", "2026-01-15 10:00", "2026-08-20 00:00", "2026-08-15 10:00"],
+    ["month-end start, before the clamped boundary", "2026-01-31 00:00", "2026-02-27 23:59", "2026-01-31 00:00"],
+    ["month-end start, at the clamped boundary", "2026-01-31 00:00", "2026-02-28 00:00", "2026-02-28 00:00"],
+    // Jan 31 + 2 months is Mar 31 (> Mar 30), but stepping gives Feb 28 → Mar 28.
+    ["month-end start, two clamped steps", "2026-01-31 00:00", "2026-03-30 00:00", "2026-03-28 00:00"],
+  ])("%s", async (_name, start, now, expected) => {
+    expect(await periodStart(start, now)).toBe(expected);
+  });
+
+  it("always lands in the period containing now, so a second call doesn't reset again", async () => {
+    // Every start from the 27th to the 31st of every month of 2026, against every day of
+    // 2026-2027: the result r has r <= now < r + 1 month, and r doesn't move again.
+    const bad = await asService(async (tx) => {
+      await tx.exec("set local timezone = 'UTC'");
+      const { rows } = await tx.query<{ n: number }>(
+        `with starts as (
+           select d as start from generate_series('2026-01-27'::timestamptz, '2026-12-31', '1 day') d
+           where extract(day from d) >= 27
+         ), nows as (
+           select d as now from generate_series('2026-01-27'::timestamptz, '2027-12-31', '1 day') d
+         ), r as (
+           select s.start, n.now, public.message_period_start(s.start, n.now) as r
+           from starts s join nows n on n.now >= s.start
+         )
+         select count(*)::int as n from r
+         where not (r.r <= r.now and r.now < r.r + interval '1 month'
+                    and public.message_period_start(r.r, r.now) = r.r)`,
+      );
+      return rows[0]?.n;
+    });
+    expect(bad).toBe(0);
+  });
+});
+
+// pglite is a single connection, so two calls can't run at once. Instead, check the locks
+// the calls leave.
+// - consume_message, on the project row: SELECT ... FOR UPDATE marks the tuple with
+//   HEAP_KEYS_UPDATED, and the UPDATE that follows in the same transaction keeps that flag
+//   on the old row version. A read-then-update without the lock (or a plain UPDATE) only
+//   takes a no-key update lock, so two calls at limit - 1 could both read the old count.
+// - save_chat_turn, on an existing conversation: FOR NO KEY UPDATE, an exclusive lock, so
+//   two turns can't read the same latest message time. The messages FK alone only takes a
+//   shared key lock.
+describe("row locks", () => {
   let lockDb: TestDb;
 
   beforeAll(async () => {
@@ -253,6 +320,7 @@ describe("consume_message row lock", () => {
       create extension pageinspect;
       insert into public.accounts (clerk_user_id) values ('${OWNER}');
       insert into public.projects (id, owner_id, name, public_key) values ('${PROJECT}', '${OWNER}', 'Mine', 'pk_chat_lock');
+      insert into public.conversations (id, project_id, visitor_id) values ('${CONVERSATION}', '${PROJECT}', 'v');
     `);
   });
 
@@ -298,6 +366,45 @@ describe("consume_message row lock", () => {
       return result;
     });
     expect(flags).not.toContain("HEAP_KEYS_UPDATED");
+  });
+
+  /** Lock flags on the conversation's tuple, held by the current transaction. Superuser only. */
+  async function conversationLockFlags(tx: Transaction): Promise<string[]> {
+    await tx.exec("reset role");
+    const { rows } = await tx.query<{ flags: string[]; mine: boolean }>(
+      `with t as (select ctid from public.conversations where id = $1)
+       select f.raw_flags as flags, h.t_xmax = pg_current_xact_id()::xid as mine
+       from t,
+         heap_page_items(get_raw_page('public.conversations', (t.ctid::text::point)[0]::int)) h,
+         heap_tuple_infomask_flags(h.t_infomask, h.t_infomask2) f
+       where h.lp = (t.ctid::text::point)[1]::int`,
+      [CONVERSATION],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.mine).toBe(true);
+    return rows[0]?.flags ?? [];
+  }
+
+  it("save_chat_turn locks an existing conversation (FOR NO KEY UPDATE) before saving", async () => {
+    const flags = await lockDb.as("service_role", { role: "service_role" }, async (tx) => {
+      await save(tx, CONVERSATION);
+      return conversationLockFlags(tx);
+    });
+    expect(flags).toEqual(expect.arrayContaining(["HEAP_XMAX_LOCK_ONLY", "HEAP_XMAX_EXCL_LOCK"]));
+    expect(flags).not.toContain("HEAP_KEYS_UPDATED");
+  });
+
+  it("control: inserting messages alone only takes the FK's key-share lock", async () => {
+    const flags = await lockDb.pg.transaction(async (tx) => {
+      await tx.query("insert into public.messages (conversation_id, role, body) values ($1, 'visitor', 'x')", [
+        CONVERSATION,
+      ]);
+      const result = await conversationLockFlags(tx);
+      await tx.rollback();
+      return result;
+    });
+    expect(flags).toContain("HEAP_XMAX_KEYSHR_LOCK");
+    expect(flags).not.toContain("HEAP_XMAX_EXCL_LOCK");
   });
 });
 
