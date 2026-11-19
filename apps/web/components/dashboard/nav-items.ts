@@ -1,12 +1,29 @@
-import { BILLING_PATH, DASHBOARD_PATH } from "../../lib/auth/routes";
+import { BILLING_PATH, DASHBOARD_PATH, projectSectionPath } from "../../lib/auth/routes";
 
 export type NavItem = { href: string; label: string };
 
-/** Account-level dashboard nav. Per-project nav arrives in Phase 2. */
+/** Account-level dashboard nav. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: DASHBOARD_PATH, label: "Projects" },
   { href: BILLING_PATH, label: "Billing" },
 ];
+
+/**
+ * A project's sections, in nav order. `segment` is the path below `/dashboard/projects/<id>`
+ * ("" is the overview). Later phases append Knowledge, Conversations and Customize here.
+ */
+export const PROJECT_SECTIONS: readonly { segment: string; label: string }[] = [
+  { segment: "", label: "Overview" },
+  { segment: "install", label: "Install" },
+];
+
+/** The per-project nav for one project. */
+export function projectNavItems(projectId: string): NavItem[] {
+  return PROJECT_SECTIONS.map((section) => ({
+    href: projectSectionPath(projectId, section.segment),
+    label: section.label,
+  }));
+}
 
 /**
  * The item for `pathname`: the longest matching href wins, so

@@ -7,7 +7,8 @@ import { useId, useState, type ReactNode } from "react";
 import { APP_NAME } from "@askwell/shared";
 import { Logo } from "../landing/logo";
 import { cn } from "../ui/cn";
-import { NAV_ITEMS, activeNavHref } from "./nav-items";
+import { projectIdFromPath } from "../../lib/auth/routes";
+import { NAV_ITEMS, activeNavHref, projectNavItems, type NavItem } from "./nav-items";
 
 function Brand() {
   return (
@@ -18,11 +19,11 @@ function Brand() {
   );
 }
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
-  const active = activeNavHref(usePathname());
+function NavLinks({ items, onNavigate }: { items: readonly NavItem[]; onNavigate?: () => void }) {
+  const active = activeNavHref(usePathname(), items);
   return (
     <ul className="flex flex-col gap-1">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const isActive = item.href === active;
         return (
           <li key={item.href}>
@@ -42,6 +43,27 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         );
       })}
     </ul>
+  );
+}
+
+/** Account nav, plus the project's sections when the path is inside a project. */
+function DashboardNav({ onNavigate }: { onNavigate?: () => void }) {
+  const projectId = projectIdFromPath(usePathname());
+  const headingId = useId();
+  return (
+    <div className="flex flex-col gap-6">
+      <NavLinks items={NAV_ITEMS} onNavigate={onNavigate} />
+      {projectId ? (
+        // The shell only knows the path. The project 404 page renders a `data-project-missing` marker, and
+        // this CSS hides the section in the server HTML, before any JavaScript runs.
+        <section aria-labelledby={headingId} className="[body:has([data-project-missing])_&]:hidden">
+          <h2 id={headingId} className="mb-2 px-3 text-xs font-medium tracking-wide text-fg-subtle uppercase">
+            Project
+          </h2>
+          <NavLinks items={projectNavItems(projectId)} onNavigate={onNavigate} />
+        </section>
+      ) : null}
+    </div>
   );
 }
 
@@ -68,7 +90,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         <div className="flex h-full flex-col rounded-panel border border-glass-line bg-glass p-4 shadow-glass backdrop-blur-glass">
           <Brand />
           <nav aria-label="Dashboard" className="mt-8 flex-1">
-            <NavLinks />
+            <DashboardNav />
           </nav>
           <div className="flex items-center gap-3 border-t border-glass-line pt-4">
             <UserButton />
@@ -97,7 +119,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </div>
         </div>
         <nav id={menuId} aria-label="Dashboard" hidden={!menuOpen} className="border-t border-glass-line px-4 py-3">
-          <NavLinks onNavigate={() => setMenuOpen(false)} />
+          <DashboardNav onNavigate={() => setMenuOpen(false)} />
         </nav>
       </header>
 

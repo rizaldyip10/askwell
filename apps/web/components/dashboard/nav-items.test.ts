@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NAV_ITEMS, activeNavHref } from "./nav-items";
+import { NAV_ITEMS, PROJECT_SECTIONS, activeNavHref, projectNavItems } from "./nav-items";
 
 describe("activeNavHref", () => {
   it("has Projects and Billing", () => {
@@ -18,5 +18,34 @@ describe("activeNavHref", () => {
   it("returns null outside the dashboard", () => {
     expect(activeNavHref("/")).toBeNull();
     expect(activeNavHref("/dashboardx")).toBeNull();
+  });
+});
+
+describe("projectNavItems", () => {
+  const ID = "6f1c2a4e-8b3d-4c5e-9f7a-1b2c3d4e5f60";
+  const base = `/dashboard/projects/${ID}`;
+
+  it("has Overview and Install, in order", () => {
+    expect(projectNavItems(ID)).toEqual([
+      { href: base, label: "Overview" },
+      { href: `${base}/install`, label: "Install" },
+    ]);
+  });
+
+  it("follows PROJECT_SECTIONS, so later sections only need a new entry", () => {
+    expect(projectNavItems(ID).map((i) => i.label)).toEqual(PROJECT_SECTIONS.map((s) => s.label));
+  });
+
+  it("highlights the matching section", () => {
+    const items = projectNavItems(ID);
+    expect(activeNavHref(base, items)).toBe(base);
+    expect(activeNavHref(`${base}/install`, items)).toBe(`${base}/install`);
+    // A future section without its own nav entry falls back to Overview.
+    expect(activeNavHref(`${base}/knowledge`, items)).toBe(base);
+    expect(activeNavHref("/dashboard/billing", items)).toBeNull();
+  });
+
+  it("keeps Projects highlighted in the account nav inside a project", () => {
+    expect(activeNavHref(`${base}/install`)).toBe("/dashboard");
   });
 });
