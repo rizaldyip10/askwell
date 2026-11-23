@@ -11,8 +11,33 @@ import {
 } from "@askwell/shared";
 import { createServiceClient } from "../supabase/service";
 
+/** The widget_configs columns that make up a WidgetConfig. */
+export const WIDGET_CONFIG_COLUMNS = "button_color, position, label, animation, header_text, show_badge";
+
 // Only the config columns and the owner's plan. Never the project's id, name or owner (§9).
-const SELECT = "widget_configs(button_color, position, label, animation, header_text, show_badge), accounts(plan)";
+const SELECT = `widget_configs(${WIDGET_CONFIG_COLUMNS}), accounts(plan)`;
+
+export type WidgetConfigRow = {
+  button_color: string;
+  position: string;
+  label: string;
+  animation: string;
+  header_text: string;
+  show_badge: boolean;
+};
+
+/** A widget_configs row as the shared WidgetConfig. */
+export function toWidgetConfig(row: WidgetConfigRow): WidgetConfig {
+  return {
+    buttonColor: row.button_color,
+    // Check constraints in the schema keep these to the shared enum values.
+    position: row.position as WidgetPosition,
+    label: row.label,
+    animation: row.animation as WidgetAnimation,
+    headerText: row.header_text,
+    showBadge: row.show_badge,
+  };
+}
 
 function toPlan(value: string | undefined): Plan {
   // An unknown plan gets the most restricted one. The server decides the plan (§5).
@@ -43,14 +68,5 @@ export async function getWidgetConfigByKey(publicKey: string): Promise<WidgetCon
     return applyPlanToWidgetConfig(DEFAULT_WIDGET_CONFIG, plan);
   }
 
-  const stored: WidgetConfig = {
-    buttonColor: row.button_color,
-    // Check constraints in the schema keep these to the shared enum values.
-    position: row.position as WidgetPosition,
-    label: row.label,
-    animation: row.animation as WidgetAnimation,
-    headerText: row.header_text,
-    showBadge: row.show_badge,
-  };
-  return applyPlanToWidgetConfig(stored, plan);
+  return applyPlanToWidgetConfig(toWidgetConfig(row), plan);
 }

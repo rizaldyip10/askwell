@@ -382,3 +382,4 @@ Every screen follows this. Agents don't pick their own style.
 | Tokens | One set of design tokens (colors, radius, shadows, blur) shared by every page |
 | States | Empty, loading and error states on every screen |
 | Responsive | Works down to 375 px wide |
+| Plan badge | Free/Pro badge next to the profile button in the sidebar and mobile top bar |

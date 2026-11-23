@@ -23,7 +23,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     if (!config) return widgetError(404, "not_found", "No project with that key");
 
     const body: WidgetConfigResponse = { config };
-    return widgetJson(body, { headers: { "Cache-Control": "public, max-age=60" } });
+    // no-store: a saved config shows on the next page load (no browser or CDN copy).
+    return widgetJson(body, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("[widget] config lookup failed", error);
     return widgetError(500, "internal", "Something went wrong");
