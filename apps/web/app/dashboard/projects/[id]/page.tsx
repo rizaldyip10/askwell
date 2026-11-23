@@ -6,7 +6,9 @@ import { formatDate } from "../../../../components/projects/format";
 import { ProjectActions } from "../../../../components/projects/project-actions";
 import { ButtonLink } from "../../../../components/ui/button";
 import { GlassPanel } from "../../../../components/ui/glass-panel";
+import { UsagePanel } from "../../../../components/usage/usage-panel";
 import { projectSectionPath } from "../../../../lib/auth/routes";
+import { getUsage } from "../../../../lib/usage";
 import { loadOwnedProject } from "./load-project";
 
 type Props = { params: Promise<{ id: string }> };
@@ -18,8 +20,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ProjectOverviewPage({ params }: Props) {
-  await auth.protect();
-  const project = await loadOwnedProject((await params).id);
+  const { userId } = await auth.protect();
+  const { id } = await params;
+  // Usage failing never fails the page: the panel says "Usage unavailable".
+  const [project, usage] = await Promise.all([loadOwnedProject(id), getUsage(userId)]);
 
   return (
     <>
@@ -31,6 +35,8 @@ export default async function ProjectOverviewPage({ params }: Props) {
       </div>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-2">
+        <UsagePanel usage={usage?.projects[project.id] ?? null} plan={usage?.plan ?? null} className="lg:col-span-2" />
+
         <GlassPanel as="section" aria-labelledby="public-key-heading" className="min-w-0 p-5">
           <h2 id="public-key-heading" className="text-base font-semibold tracking-tight">
             Public key
