@@ -173,3 +173,7 @@ Notes:
   with the Clerk Backend API (`POST /v1/users`, a `+clerk_test` email), then sign in on the preview.
   `signed_up` still fires: it's sent when the account row is created on the first dashboard load.
 - The round button at the right edge of the dashboard screenshots is Vercel's preview toolbar, not the app.
+
+## Phase 5 check: billing, customize, upgrade funnel
+
+In progress (P5B-T05).
