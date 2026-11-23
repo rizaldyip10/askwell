@@ -95,3 +95,7 @@ Notes:
   server-rendered and shows a moment before the key listener is attached.
 - Clerk's sign-up bot check (Turnstile) doesn't load in headless Chromium. Sign in with a
   `+clerk_test` user instead; the email code is always `424242`.
+
+## Phase 4 check: conversations, usage, analytics
+
+In progress (P4C-T08).
