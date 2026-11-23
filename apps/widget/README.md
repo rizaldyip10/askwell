@@ -196,7 +196,10 @@ owners, and delete them afterwards (end any Pro subscription first).
 4. **Customize on Pro:** change the color and corner, then **Save**. Only the changed fields are sent.
    Reload the plain HTML page: the new look shows.
 5. **PostHog (API):** `upgraded` under the owner's person. Refresh the saved **"Owner funnel"**
-   (`GET /api/projects/<id>/insights/<id>/?refresh=force_blocking`): its last step counts the owner.
+   (`GET /api/projects/<id>/insights/<id>/?refresh=force_blocking`): its last step has a count. A count alone
+   doesn't say who, so list the people who converted through the last step (PostHog MCP `query-funnel-actors`
+   with `funnelStep: 7` and the insight's query; in the UI, click the step's count). The test owner's Clerk ID
+   must be in that list.
 6. **Cancel:** Billing → **Manage subscription** → Billing → **Manage** → **Cancel subscription**. Pro stays
    ("Canceled · Ends <date>"), and `accounts.plan` stays `pro`. To test the end without waiting a year, end the item
    on the dev instance:
@@ -213,7 +216,7 @@ owners, and delete them afterwards (end any Pro subscription first).
 | Test-card upgrade → Pro, no manual reload | Pass. Pay → Continue → back on `?checkout=done` 3 s later, already "You're on Pro.", Pro badge on the plan and in the sidebar. `accounts.plan = pro` on dev. The webhook landed before the redirect, so "Upgrade processing…" never showed in this run |
 | Save after the upgrade → plain HTML page | Pass. PATCH body `{"buttonColor":"#1d4ed8","position":"top-left"}`. On reload the button went from `rgb(10,10,10)` bottom-right to `rgb(29,78,216)` top-left |
 | `upgraded` in PostHog | Pass. `upgraded` (`plan: pro`) under the owner's Clerk ID, 4 s after the payment |
-| "Owner funnel" last step | Pass. After a refresh: landing 5 → signed_up 3 → project 3 → knowledge 3 → snippet 2 → first_chat 2 → **upgraded 1** (last 7 days; earlier test owners drop at earlier steps) |
+| "Owner funnel" last step | Pass. After a refresh: landing 5 → signed_up 3 → project 3 → knowledge 3 → snippet 2 → first_chat 2 → **upgraded 1**. The people who converted through step 7 (`query-funnel-actors`, the insight's 30-day query): only `user_3MVTpxPOQKlPus2HqEFZ6qaQAjt`, this run's test owner. The other two test owners also sent `upgraded` but drop at earlier steps |
 | Cancel keeps Pro until the period ends | Pass. Portal: "Pro · Active · Canceled · Ends Nov 23, 2027", Free "Upcoming". `accounts.plan` still `pro` after the webhook |
 | End now → Free + defaults | Pass. Ended with `end_now=true`: `accounts.plan = free` within 4 s. The plain HTML page shows the default black bottom-right button again; Billing says Free; Customize is locked; the stored look (`#1d4ed8`, top-left) is kept |
 | `past_due` keeps Pro (product owner) | Not testable here: the test card can't fail a renewal on demand |
