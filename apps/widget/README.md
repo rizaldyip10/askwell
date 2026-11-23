@@ -95,3 +95,81 @@ Notes:
   server-rendered and shows a moment before the key listener is attached.
 - Clerk's sign-up bot check (Turnstile) doesn't load in headless Chromium. Sign in with a
   `+clerk_test` user instead; the email code is always `424242`.
+
+## Phase 4 check: conversations, usage, analytics
+
+Run it on a preview with every Phase 4 task merged. Use a new test owner and project (this check uses
+about 25 messages). It reuses the cross-origin setup above. Delete the test project and user when you're done.
+
+**Prerequisites:** the preview needs `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST` (plus
+`ARCJET_KEY` and `OPENAI_API_KEY` from Phase 3). Session replay must be turned on in the PostHog project
+(Settings → Session replay → "Record user sessions"). The code asks for replays, but PostHog only stores
+them when this is on. After turning it on, open a new page: a page loaded earlier may still use the cached
+config without recording.
+
+1. **Owner flow.** In one browser context: open `/` (the funnel's landing step), sign in as the new owner,
+   create a project, paste text knowledge and wait for **Ready**, then copy the snippet on **Install**.
+2. **Record the usage baseline** before sending anything: on dev,
+   `select messages_used from projects where id = '<project id>'`.
+3. **Chat** from the snippet on a plain page on another origin (see "Testing cross-origin" above). Ask two
+   questions the knowledge answers.
+4. **Conversations:** open the project's **Conversations**, press **Refresh**, and open the chat. All messages
+   should be there, in order.
+5. **Usage:** read `messages_used` again and compare it with the baseline (+1 per accepted message). Check that
+   the project card (`/dashboard`) and the overview's Usage panel both show the new count.
+6. **Rate limit → `message_blocked`:** wait 61 s, then send 21 messages from 3 tabs at once (as in the
+   Phase 3 check). Expect exactly one "too fast" refusal. The refused message isn't counted.
+7. **PostHog** (HogQL in the SQL editor, or the person's Activity tab):
+   - The owner's person has `signed_up`, `project_created`, `knowledge_added`, `snippet_copied` and `first_chat`,
+     each once.
+   - `$ai_generation` events have `$ai_trace_id` = the conversation ID, the model, tokens, and
+     `$ai_total_cost_usd`. Check them in **LLM analytics → Traces**.
+   - One `message_blocked` with `reason: rate_limit` (random distinct ID, no message text).
+   - No event has an `/embed` URL. In the browser, the `/embed` iframe sends no `/relay` request.
+   - A replay of the dashboard session exists under the owner.
+8. **Funnel:** the saved insight **"Owner funnel"** (Product analytics → Insights) should show the new owner
+   through every step up to `first_chat`. `upgraded` stays at 0 until Phase 5 (the Clerk webhook sends it).
+
+### Results from the P4C-T08 run (Nov 23, 2026)
+
+| Check | Result |
+|---|---|
+| Widget chat on another origin | Pass. Two correct answers from the pasted text |
+| Conversations after Refresh | Pass. The chat shows (4 messages); the thread is complete, visitor and bot in order |
+| Usage, +1 per accepted message | Pass. 0 → 2 after two answers → 22 after the burst (20 accepted, the refused 21st not counted). Card and overview agree with `messages_used` |
+| `message_blocked` | Pass. Exactly one "too fast" in 21 sends; one `message_blocked` (`reason: rate_limit`, props `reason` and `public_key` only) |
+| Owner events | Pass. `signed_up`, `project_created`, `knowledge_added`, `snippet_copied` and `first_chat` once each, all under the owner's Clerk ID and one person |
+| AI traces with cost | Pass. 22 `$ai_generation` events in 4 traces, one per conversation. The first chat's trace: 2 replies, 538 input tokens, $0.00056. All 22: $0.0072 |
+| `/embed` sends nothing to PostHog | Pass. No `/relay` or PostHog request from the iframe; no event with an `/embed` URL |
+| Dashboard session replay | Pass, after the product owner turned on recording. Replay `01a207e2-905e-7a79-a9f5-94aaf97c8666`: 56 s, sign-in → dashboard → project overview, Conversations and Knowledge, 3 clicks, under the owner's Clerk ID (checked through the recordings API) |
+| "Owner funnel" insight | Pass. Saved; the test owner went through landing → `first_chat` (100% each step); `upgraded` is 0 |
+
+#### Checks left open on #34 (PostHog setup) and #35 (chat analytics)
+
+| PR | Check | Result |
+|---|---|---|
+| #34 | Landing and dashboard pageviews | Pass. `$pageview` on `/` and the dashboard pages |
+| #34 | A signed-in visit is identified by the Clerk user ID | Pass. `$identify` with the Clerk ID; earlier anonymous events merged into the same person |
+| #34 | Sign-out resets | **Fail, moved to P4C-T09.** After sign-out, the `/sign-in` and `/` pageviews still carry the owner's Clerk ID (same person), so `reset()` didn't run |
+| #34 | Client error in Error tracking | Pass. A thrown `Error("P4C-T08 client error check")` on `/dashboard` arrived as `$exception` with an issue ID, under the owner |
+| #34 | Server error in Error tracking | Not run, moved to P4C-T09. Every route answers bad input with a 4xx, so a server error needs a throwing route (on a throwaway branch's preview) |
+| #34 | Dashboard session replay | Pass (see above) |
+| #34 | `/embed` sends nothing | Pass (see above) |
+| #35 | Generation with model, tokens, latency, project ID, cost; no text | Pass. E.g. `gpt-5.4-mini`, 270 in / 17 out tokens, 1.22 s, $0.000279. No `$ai_input` / `$ai_output_choices` |
+| #35 | Two replies in one conversation share one trace | Pass. The first conversation's 2 replies have the same `$ai_trace_id` (its conversation ID) |
+
+| Knowledge ready | Widget chat | Conversations after Refresh | Thread |
+|---|---|---|---|
+| ![Pasted text Ready on the Knowledge page](docs/phase4/knowledge-ready.png) | ![Two answers in the widget on a plain host page](docs/phase4/widget-chat.png) | ![Four conversations, newest first](docs/phase4/conversations-list.png) | ![The first conversation's four messages](docs/phase4/conversation-thread.png) |
+
+| Card, after 2 | Overview, after 2 | Card, after the burst | Overview, after the burst | 21st message refused |
+|---|---|---|---|---|
+| ![2 / 100 on the project card](docs/phase4/usage-card-2.png) | ![2 / 100 in the Usage panel](docs/phase4/usage-overview-2.png) | ![22 / 100 on the project card](docs/phase4/usage-card-22.png) | ![22 / 100 in the Usage panel](docs/phase4/usage-overview-22.png) | ![The too-fast message](docs/phase4/panel-too-fast.png) |
+
+Notes:
+- **posthog-js drops headless Chromium as a bot.** Playwright's default browser sends no events. Launch with
+  `--disable-blink-features=AutomationControlled` and a normal Chrome user agent. Server events aren't affected.
+- **Sign-up in a sandbox.** Clerk's sign-up CAPTCHA host can be unreachable from a sandbox. Create the owner
+  with the Clerk Backend API (`POST /v1/users`, a `+clerk_test` email), then sign in on the preview.
+  `signed_up` still fires: it's sent when the account row is created on the first dashboard load.
+- The round button at the right edge of the dashboard screenshots is Vercel's preview toolbar, not the app.
