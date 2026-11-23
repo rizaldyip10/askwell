@@ -4,7 +4,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { verifyWebhook } from "@clerk/nextjs/webhooks";
 import { NextResponse, type NextRequest } from "next/server";
 import { billingEventUser, planFromSubscription, type SubscriptionLike } from "../../../../lib/billing";
-import { setAccountPlan } from "../../../../lib/billing/sync-plan";
+import { syncAccountPlan } from "../../../../lib/billing/sync-plan";
 
 // POST /api/clerk/webhook (project.md §6.10, §8 System). Public: Svix deliveries carry no
 // session, so the signature is the only check (lib/auth/routes.ts keeps it out of the gates).
@@ -13,7 +13,9 @@ import { setAccountPlan } from "../../../../lib/billing/sync-plan";
 // 2. Pro `subscriptionItem.*` events for a user payer only; anything else → 200, ignored.
 // 3. Read the user's **current** subscription from Clerk, not the payload: Svix may deliver
 //    late, twice or out of order, and the current state is right whatever the order.
-// 4. Set accounts.plan from it. Clerk or database errors → 500, so Svix retries.
+// 4. Set accounts.plan from it, then read Clerk again to confirm, so a slow delivery's stale
+//    read can't overwrite a newer plan (lib/billing/sync-plan.ts). Clerk or database errors
+//    → 500, so Svix retries.
 
 export const dynamic = "force-dynamic";
 
@@ -31,21 +33,12 @@ export async function POST(req: NextRequest) {
   const userId = billingEventUser(event as Parameters<typeof billingEventUser>[0]);
   if (!userId) return NextResponse.json({ received: true, ignored: true });
 
-  let subscription: SubscriptionLike | null;
   try {
-    subscription = await currentSubscription(userId);
-  } catch (cause) {
-    console.error("[billing webhook] reading the subscription failed", errorSummary(cause));
-    return error(500, "internal", "Couldn't read the subscription. Retry later.");
-  }
-
-  const plan = planFromSubscription(subscription);
-  try {
-    const changed = await setAccountPlan(userId, plan);
+    const { plan, changed } = await syncAccountPlan(userId, async () => planFromSubscription(await currentSubscription(userId)));
     return NextResponse.json({ received: true, plan, changed });
   } catch (cause) {
-    console.error("[billing webhook] updating the plan failed", errorSummary(cause));
-    return error(500, "internal", "Couldn't update the plan. Retry later.");
+    console.error("[billing webhook] syncing the plan failed", errorSummary(cause));
+    return error(500, "internal", "Couldn't sync the plan. Retry later.");
   }
 }
 

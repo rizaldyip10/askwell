@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { trackSignedUp, trackUpgraded } from "../../../../lib/analytics/owner-events";
 import { createServiceClient } from "../../../../lib/supabase/service";
+import { MAX_SYNC_ROUNDS } from "../../../../lib/billing/sync-plan";
 import { POST } from "./route";
 
 vi.mock("server-only", () => ({}));
@@ -190,6 +191,38 @@ describe("POST /api/clerk/webhook", () => {
     expect(getSubscription).not.toHaveBeenCalled();
     expect(createServiceClient).not.toHaveBeenCalled();
     expect(db.writes).toEqual([]);
+  });
+
+  it("a stale read can't win: A reads pro, Clerk moves to free before A's check, A puts free back", async () => {
+    // Delivery A's first read is stale (pro); by its check read, Clerk says free (B already
+    // wrote free, or is about to). A must end on free and must not send `upgraded`.
+    const db = fakeAccounts({ [USER]: "free" });
+    getSubscription
+      .mockResolvedValueOnce(subscription(proItem("active")))
+      .mockResolvedValue(subscription(proItem("ended", { endedAt: Date.now() - DAY })));
+    const res = await POST(signed(itemEvent("subscriptionItem.active")));
+    expect(await res.json()).toEqual({ received: true, plan: "free", changed: true });
+    expect(db.writes).toEqual([`update ${USER} pro`, `update ${USER} free`]);
+    expect(db.rows.get(USER)).toBe("free");
+    expect(trackUpgraded).not.toHaveBeenCalled();
+  });
+
+  it("confirms the write with a second read of Clerk", async () => {
+    fakeAccounts({ [USER]: "free" });
+    getSubscription.mockResolvedValue(subscription(proItem("active")));
+    await POST(signed(itemEvent("subscriptionItem.active")));
+    expect(getSubscription).toHaveBeenCalledTimes(2);
+  });
+
+  it("a plan that keeps changing → 500 after the last round (Svix retries)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fakeAccounts({ [USER]: "free" });
+    let flip = false;
+    getSubscription.mockImplementation(async () => ((flip = !flip) ? subscription(proItem("active")) : subscription()));
+    const res = await POST(signed(itemEvent("subscriptionItem.active")));
+    expect(res.status).toBe(500);
+    expect(getSubscription).toHaveBeenCalledTimes(MAX_SYNC_ROUNDS + 1);
+    expect(trackUpgraded).not.toHaveBeenCalled();
   });
 
   it("Clerk API error → 500 (Svix retries), nothing written", async () => {
