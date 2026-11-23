@@ -3,34 +3,34 @@
 import { useAuth, useClerk } from "@clerk/nextjs";
 import { useEffect } from "react";
 import { loadPostHog } from "../../lib/analytics/browser";
-import { identifyUser } from "../../lib/analytics/identify";
+import { createSignOutWatcher, syncIdentity } from "../../lib/analytics/identify";
 
 /**
- * Identifies the signed-in owner by their Clerk user ID, and resets PostHog on sign-out so
- * the next person on this browser starts anonymous. Mounted from the dashboard layout,
- * inside its ClerkProvider. Renders nothing.
+ * Keeps PostHog in step with Clerk: identifies the signed-in owner by their Clerk user ID, and
+ * resets on sign-out so the next person on this browser starts anonymous. Mount it inside a
+ * ClerkProvider (the dashboard, sign-in and sign-up layouts). Renders nothing.
  */
 export function PostHogIdentify() {
   const { isLoaded, userId } = useAuth();
   const clerk = useClerk();
 
+  // On load and on every user change: identify, or reset if signed out but still identified.
   useEffect(() => {
-    if (!isLoaded || !userId) return;
+    if (!isLoaded) return;
     void loadPostHog().then((posthog) => {
-      if (posthog) identifyUser(posthog, userId);
+      if (posthog) syncIdentity(posthog, userId ?? null);
     });
   }, [isLoaded, userId]);
 
-  // Clerk's listener fires as the session ends, before the redirect to sign-in unmounts us.
-  // `user === null` is signed out; `undefined` is still loading.
-  useEffect(
-    () =>
-      clerk.addListener(({ user }) => {
-        if (user !== null) return;
-        void loadPostHog().then((posthog) => posthog?.reset());
-      }),
-    [clerk],
-  );
+  // Sign-out: Clerk emits a transitional state and navigates away before it emits `null`,
+  // so reset as soon as the signed-in user goes away, while we're still mounted.
+  useEffect(() => {
+    const signedOut = createSignOutWatcher();
+    return clerk.addListener(({ user }) => {
+      if (!signedOut(user)) return;
+      void loadPostHog().then((posthog) => posthog?.reset());
+    });
+  }, [clerk]);
 
   return null;
 }
