@@ -108,15 +108,17 @@ them when this is on.
 
 1. **Owner flow.** In one browser context: open `/` (the funnel's landing step), sign in as the new owner,
    create a project, paste text knowledge and wait for **Ready**, then copy the snippet on **Install**.
-2. **Chat** from the snippet on a plain page on another origin (see "Testing cross-origin" above). Ask two
+2. **Record the usage baseline** before sending anything: on dev,
+   `select messages_used from projects where id = '<project id>'`.
+3. **Chat** from the snippet on a plain page on another origin (see "Testing cross-origin" above). Ask two
    questions the knowledge answers.
-3. **Conversations:** open the project's **Conversations**, press **Refresh**, and open the chat. All messages
+4. **Conversations:** open the project's **Conversations**, press **Refresh**, and open the chat. All messages
    should be there, in order.
-4. **Usage:** read `messages_used` on dev before and after. Check the project card (`/dashboard`) and the
-   overview's Usage panel both show the new count.
-5. **Rate limit → `message_blocked`:** wait 61 s, then send 21 messages from 3 tabs at once (as in the
+5. **Usage:** read `messages_used` again and compare it with the baseline (+1 per accepted message). Check that
+   the project card (`/dashboard`) and the overview's Usage panel both show the new count.
+6. **Rate limit → `message_blocked`:** wait 61 s, then send 21 messages from 3 tabs at once (as in the
    Phase 3 check). Expect exactly one "too fast" refusal. The refused message isn't counted.
-6. **PostHog** (HogQL in the SQL editor, or the person's Activity tab):
+7. **PostHog** (HogQL in the SQL editor, or the person's Activity tab):
    - The owner's person has `signed_up`, `project_created`, `knowledge_added`, `snippet_copied` and `first_chat`,
      each once.
    - `$ai_generation` events have `$ai_trace_id` = the conversation ID, the model, tokens, and
@@ -124,7 +126,7 @@ them when this is on.
    - One `message_blocked` with `reason: rate_limit` (random distinct ID, no message text).
    - No event has an `/embed` URL. In the browser, the `/embed` iframe sends no `/relay` request.
    - A replay of the dashboard session exists under the owner.
-7. **Funnel:** the saved insight **"Owner funnel"** (Product analytics → Insights) should show the new owner
+8. **Funnel:** the saved insight **"Owner funnel"** (Product analytics → Insights) should show the new owner
    through every step up to `first_chat`. `upgraded` stays at 0 until Phase 5 (the Clerk webhook sends it).
 
 ### Results from the P4C-T08 run (Nov 23, 2026)
