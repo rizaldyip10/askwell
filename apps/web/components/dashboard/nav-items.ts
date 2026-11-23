@@ -10,11 +10,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
 
 /**
  * A project's sections, in nav order. `segment` is the path below `/dashboard/projects/<id>`
- * ("" is the overview). Later phases add Conversations and Customize here.
+ * ("" is the overview). Later phases add Customize here.
  */
 export const PROJECT_SECTIONS: readonly { segment: string; label: string }[] = [
   { segment: "", label: "Overview" },
   { segment: "knowledge", label: "Knowledge" },
+  { segment: "conversations", label: "Conversations" },
   { segment: "install", label: "Install" },
 ];
 
