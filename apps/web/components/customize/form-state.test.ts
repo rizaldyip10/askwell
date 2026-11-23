@@ -54,6 +54,17 @@ describe("previewConfig", () => {
   it("keeps the last good color and text while the owner is mid-edit", () => {
     expect(previewConfig({ ...SAVED, buttonColor: "#e1", label: " ", headerText: "" }, SAVED)).toEqual(SAVED);
   });
+
+  it("chained over edits, keeps the latest valid value, not the saved one", () => {
+    let preview = SAVED;
+    const step = (draft: WidgetConfig) => (preview = previewConfig(draft, preview));
+    step({ ...SAVED, buttonColor: "#E11D48", label: "Talk to us" });
+    // The owner deletes the color's last character and clears the label.
+    step({ ...SAVED, buttonColor: "#E11D4", label: "" });
+    expect(preview.buttonColor).toBe("#E11D48");
+    expect(preview.label).toBe("Talk to us");
+    expect(SAVED.buttonColor).toBe(DEFAULT_WIDGET_CONFIG.buttonColor); // the baseline is untouched
+  });
 });
 
 describe("submitConfig", () => {

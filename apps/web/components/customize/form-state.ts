@@ -66,7 +66,10 @@ export function previewColor(draft: string, fallback: string): string {
   return HEX_COLOR_PATTERN.test(draft) ? draft : fallback;
 }
 
-/** What the preview shows: the draft, with an unfinished color or empty text kept at the last good value. */
+/**
+ * The next preview: the draft, with an unfinished color or empty text kept at `fallback`. Pass the
+ * previous preview as `fallback`, so each field keeps its latest valid value (not the saved one).
+ */
 export function previewConfig(draft: WidgetConfig, fallback: WidgetConfig): WidgetConfig {
   return {
     ...draft,

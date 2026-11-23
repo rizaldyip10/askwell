@@ -52,6 +52,9 @@ type CustomizeViewProps = {
 export function CustomizeView({ projectId, canCustomize, initial, save = saveWidgetConfig }: CustomizeViewProps) {
   const [saved, setSaved] = useState<WidgetConfig>(initial);
   const [draft, setDraft] = useState<WidgetConfig>(initial);
+  // What the preview shows: the latest valid value of each field, so a half-typed color or a
+  // cleared text keeps the last good one. Separate from `saved`, the baseline for changes.
+  const [preview, setPreview] = useState<WidgetConfig>(initial);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const ids = useId();
@@ -61,7 +64,9 @@ export function CustomizeView({ projectId, canCustomize, initial, save = saveWid
   const saving = status.kind === "saving";
 
   function update<K extends ConfigField>(field: K, value: WidgetConfig[K]) {
-    setDraft((current) => ({ ...current, [field]: value }));
+    const next = { ...draft, [field]: value };
+    setDraft(next);
+    setPreview((current) => previewConfig(next, current));
     setErrors((current) => {
       if (!(field in current)) return current;
       const next = { ...current };
@@ -87,6 +92,7 @@ export function CustomizeView({ projectId, canCustomize, initial, save = saveWid
       case "saved":
         setSaved(result.config);
         setDraft(result.config);
+        setPreview(result.config);
         setStatus({ kind: "saved" });
         return;
       case "error":
@@ -227,6 +233,7 @@ export function CustomizeView({ projectId, canCustomize, initial, save = saveWid
                   variant="ghost"
                   onClick={() => {
                     setDraft({ ...DEFAULT_WIDGET_CONFIG });
+                    setPreview({ ...DEFAULT_WIDGET_CONFIG });
                     setErrors({});
                     setStatus({ kind: "idle" });
                   }}
@@ -244,7 +251,7 @@ export function CustomizeView({ projectId, canCustomize, initial, save = saveWid
         </GlassPanel>
 
         <GlassPanel className="min-w-0 p-5 sm:p-6">
-          <WidgetPreview config={previewConfig(draft, saved)} />
+          <WidgetPreview config={preview} />
         </GlassPanel>
       </div>
     </div>
