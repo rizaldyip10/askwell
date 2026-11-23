@@ -25,6 +25,14 @@ describe("proxy matcher", () => {
     },
   );
 
+  it.each(["/relay", "/relay/e/", "/relay/static/array.js", "/relay/flags/?v=2"])("skips the PostHog proxy path %s", (path) => {
+    expect(matches(path)).toBe(false);
+  });
+
+  it("still runs for paths that only start with relay", () => {
+    expect(matches("/relayx")).toBe(true);
+  });
+
   it("skips Next.js internals and static files", () => {
     expect(matches("/_next/static/chunk.js")).toBe(false);
     expect(matches("/favicon.ico")).toBe(false);

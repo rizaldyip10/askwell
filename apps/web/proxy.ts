@@ -27,8 +27,9 @@ export const config = {
     // Skip Next.js internals, static files (unless found in search params) and
     // the widget paths. The widget runs in third-party iframes and cross-origin
     // fetches, where Clerk's dev-instance handshake redirect would break it:
-    // /embed and below, /api/widget/* and /widget.js never reach Clerk.
-    "/((?!_next|embed(?:/|$)|api/widget/|widget\\.js$|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // /embed and below, /api/widget/* and /widget.js never reach Clerk. Nor does /relay/*,
+    // the PostHog reverse proxy (next.config.ts rewrites it to PostHog).
+    "/((?!_next|embed(?:/|$)|relay(?:/|$)|api/widget/|widget\\.js$|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     // Always run for API routes, except the public widget routes.
     "/(api(?!/widget/)|trpc)(.*)",
   ],

@@ -1,6 +1,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { PostHogIdentify } from "../../components/analytics/posthog-identify";
 import { DashboardShell } from "../../components/dashboard/dashboard-shell";
 import { EmptyState } from "../../components/dashboard/empty-state";
 import { buttonClasses } from "../../components/ui/button";
@@ -26,6 +27,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       signUpFallbackRedirectUrl={DASHBOARD_PATH}
       afterSignOutUrl={SIGN_IN_PATH}
     >
+      <PostHogIdentify />
       <DashboardShell>{account === "ready" ? children : <AccountErrorState />}</DashboardShell>
     </ClerkProvider>
   );

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { posthogRewrites } from "./lib/analytics/config";
 
 // Clickjacking (project.md §9): only /embed may be framed by other sites.
 const EMBED_FRAME_HEADERS = [{ key: "Content-Security-Policy", value: "frame-ancestors *" }];
@@ -16,6 +17,12 @@ const WIDGET_JS_HEADERS = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@askwell/shared", "@askwell/db"],
+  // PostHog's API paths end in a slash (`/e/`, `/flags/`): don't redirect them before the rewrite.
+  skipTrailingSlashRedirect: true,
+  // PostHog reverse proxy (lib/analytics/config.ts): /relay/* → PostHog, same origin for the browser.
+  async rewrites() {
+    return posthogRewrites(process.env.NEXT_PUBLIC_POSTHOG_HOST);
+  },
   async headers() {
     return [
       { source: "/embed", headers: EMBED_FRAME_HEADERS },
