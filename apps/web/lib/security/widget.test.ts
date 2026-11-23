@@ -12,6 +12,9 @@ vi.mock("./arcjet", () => ({
 const onBlocked = vi.fn();
 vi.mock("./blocked", () => ({ onBlocked }));
 
+const captureServer = vi.fn();
+vi.mock("../analytics/server", () => ({ captureServer: (...args: unknown[]) => captureServer(...args) }));
+
 const widget = await import("./widget");
 const { PROTECT_TIMEOUT_MS, protectWidgetChat, protectWidgetConfig } = widget;
 
@@ -124,5 +127,36 @@ describe("fail open", () => {
     await vi.advanceTimersByTimeAsync(PROTECT_TIMEOUT_MS + 1);
     expect(await pending).toEqual({ allowed: true });
     expect(log).toHaveBeenCalledWith(expect.stringContaining("failed, allowing"), expect.stringContaining("did not answer"));
+  });
+});
+
+// The real onBlocked (the rest of this file mocks it), with captureServer mocked.
+const real = await vi.importActual<typeof import("./blocked")>("./blocked");
+
+describe("onBlocked → message_blocked", () => {
+  beforeEach(() => captureServer.mockReset());
+
+  it.each(["rate_limit", "injection"] as const)("sends %s with the reason and public key, personless", (reason) => {
+    real.onBlocked(reason, KEY);
+    expect(captureServer).toHaveBeenCalledOnce();
+    const [event, distinctId, props] = captureServer.mock.calls[0]!;
+    expect(event).toBe("message_blocked");
+    expect(props).toEqual({ reason, public_key: KEY, $process_person_profile: false });
+    // An anonymous ID per event: never the key, never a shared literal.
+    expect(distinctId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("uses a fresh anonymous ID each time", () => {
+    real.onBlocked("rate_limit", KEY);
+    real.onBlocked("rate_limit", KEY);
+    expect(captureServer.mock.calls[0]![1]).not.toBe(captureServer.mock.calls[1]![1]);
+  });
+
+  it("never sends the message text", async () => {
+    chatProtect.mockResolvedValueOnce(decision("injection"));
+    await protectWidgetChat(req(), { publicKey: KEY, message: "secret visitor text" });
+    const [reason, key] = onBlocked.mock.calls[0]! as ["injection", string];
+    real.onBlocked(reason, key);
+    expect(JSON.stringify(captureServer.mock.calls)).not.toContain("secret visitor text");
   });
 });

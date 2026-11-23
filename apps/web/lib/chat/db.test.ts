@@ -4,7 +4,7 @@ import type { ServiceClient } from "../supabase/service";
 vi.mock("server-only", () => ({}));
 vi.mock("../supabase/service", () => ({ createServiceClient: vi.fn() }));
 
-const { consumeMessage, conversationBelongs, getChatProject, matchChunks, saveChatTurn } = await import("./db");
+const { consumeMessage, conversationBelongs, getChatProject, isFirstConversation, matchChunks, saveChatTurn } = await import("./db");
 
 const KEY = "pk_a1b2c3d4e5f6a7b8c9d0e1f2";
 const PROJECT = "6f1c2a4e-8b3d-4c5e-9f7a-1b2c3d4e5f60";
@@ -12,13 +12,15 @@ const CONVO = "7a2b3c4d-1e2f-4a5b-8c9d-0e1f2a3b4c5d";
 
 type Result = { data: unknown; error: { code?: string; message?: string } | null };
 const rpc = vi.fn<(fn: string, args: Record<string, unknown>) => Promise<Result>>();
-const query = { from: vi.fn(), select: vi.fn(), eq: vi.fn() };
+const query = { from: vi.fn(), select: vi.fn(), eq: vi.fn(), order: vi.fn(), limit: vi.fn() };
 let single: Result;
 
 function fakeService(): ServiceClient {
   const chain = {
     select: (...a: unknown[]) => (query.select(...a), chain),
     eq: (...a: unknown[]) => (query.eq(...a), chain),
+    order: (...a: unknown[]) => (query.order(...a), chain),
+    limit: (...a: unknown[]) => (query.limit(...a), chain),
     maybeSingle: async () => single,
   };
   return {
@@ -34,12 +36,36 @@ beforeEach(() => {
   service = fakeService();
 });
 
+describe("isFirstConversation", () => {
+  it("is true only for the project's oldest conversation (created_at, then id)", async () => {
+    single = { data: { id: CONVO }, error: null };
+    expect(await isFirstConversation(PROJECT, CONVO, service)).toBe(true);
+    expect(query.from).toHaveBeenCalledWith("conversations");
+    expect(query.eq).toHaveBeenCalledWith("project_id", PROJECT);
+    expect(query.order.mock.calls).toEqual([
+      ["created_at", { ascending: true }],
+      ["id", { ascending: true }],
+    ]);
+    expect(query.limit).toHaveBeenCalledWith(1);
+
+    single = { data: { id: "00000000-0000-4000-8000-000000000001" }, error: null };
+    expect(await isFirstConversation(PROJECT, CONVO, service)).toBe(false);
+    single = { data: null, error: null };
+    expect(await isFirstConversation(PROJECT, CONVO, service)).toBe(false);
+  });
+
+  it("throws on a database error", async () => {
+    single = { data: null, error: { code: "XX000", message: "boom" } };
+    await expect(isFirstConversation(PROJECT, CONVO, service)).rejects.toThrow("isFirstConversation failed: XX000");
+  });
+});
+
 describe("getChatProject", () => {
-  it("looks up by public_key only, returning the id and the owner's plan", async () => {
-    single = { data: { id: PROJECT, accounts: { plan: "pro" } }, error: null };
-    expect(await getChatProject(KEY, service)).toEqual({ id: PROJECT, plan: "pro" });
+  it("looks up by public_key only, returning the id, owner and the owner's plan", async () => {
+    single = { data: { id: PROJECT, owner_id: "user_owner", accounts: { plan: "pro" } }, error: null };
+    expect(await getChatProject(KEY, service)).toEqual({ id: PROJECT, ownerId: "user_owner", plan: "pro" });
     expect(query.from).toHaveBeenCalledWith("projects");
-    expect(query.select).toHaveBeenCalledWith("id, accounts(plan)");
+    expect(query.select).toHaveBeenCalledWith("id, owner_id, accounts(plan)");
     expect(query.eq).toHaveBeenCalledWith("public_key", KEY);
   });
 
