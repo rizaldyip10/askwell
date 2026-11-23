@@ -18,6 +18,20 @@ export type Project = {
   createdAt: string;
 };
 
+/**
+ * A project's messages this period (project.md §6.12), from `owner_activity()`.
+ * `used` is 0 once the stored period has ended, even before the next chat resets it.
+ * `limit` is `PLAN_LIMITS[plan].messagesPerMonth` for the owner's plan, read on the server.
+ * The period is [periodStart, periodEnd): the count resets at periodEnd.
+ */
+export type ProjectUsage = {
+  projectId: string;
+  used: number;
+  limit: number;
+  periodStart: string;
+  periodEnd: string;
+};
+
 export type WidgetConfig = {
   buttonColor: string;
   position: WidgetPosition;

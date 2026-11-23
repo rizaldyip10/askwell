@@ -55,6 +55,7 @@ describe("Database function overrides", () => {
     expectTypeOf<Functions["conversation_belongs"]>().toEqualTypeOf<
       Generated["Functions"]["conversation_belongs"]
     >();
+    expectTypeOf<Functions["owner_activity"]>().toEqualTypeOf<Generated["Functions"]["owner_activity"]>();
     expectTypeOf<keyof Functions>().toEqualTypeOf<keyof Generated["Functions"]>();
     expectTypeOf<Database["public"]["Tables"]>().toEqualTypeOf<Generated["Tables"]>();
   });
