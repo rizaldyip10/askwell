@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { billingEventUser, planFromSubscription, type SubscriptionLike } from "../../../../lib/billing";
 import { syncAccountPlan } from "../../../../lib/billing/sync-plan";
 
-// POST /api/clerk/webhook (project.md §6.10, §8 System). Public: Svix deliveries carry no
+// POST /api/clerk/webhook (project.md §6.10, §8 System; subscribe it to subscriptionItem.*). Public: Svix deliveries carry no
 // session, so the signature is the only check (lib/auth/routes.ts keeps it out of the gates).
 //
 // 1. Verify the signature (CLERK_WEBHOOK_SIGNING_SECRET) before anything else. Bad → 400.
