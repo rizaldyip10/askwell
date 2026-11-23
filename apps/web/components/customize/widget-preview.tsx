@@ -86,8 +86,9 @@ export function WidgetPreview({ config }: { config: WidgetConfig }) {
           data-testid="preview-panel"
           data-animation={config.animation}
           style={panelStyle}
+          // `isolate`: keeps the header's backdrop blur inside the rounded corners (Chromium).
           className={cn(
-            "absolute flex h-[300px] w-[min(300px,calc(100%-2rem))] flex-col overflow-hidden rounded-[20px] shadow-[0_24px_64px_-16px_rgba(0,0,0,0.35),0_0_0_1px_rgba(0,0,0,0.08)]",
+            "absolute isolate flex h-[300px] w-[min(300px,calc(100%-2rem))] flex-col overflow-hidden rounded-[20px] shadow-[0_24px_64px_-16px_rgba(0,0,0,0.35),0_0_0_1px_rgba(0,0,0,0.08)]",
             PANEL_SURFACE,
             PANEL_CORNER[config.position],
             phase === "open" ? "transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none" : "transition-none",
