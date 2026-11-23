@@ -1,6 +1,7 @@
 import { MAX_KNOWLEDGE_FILE_BYTES } from "@askwell/shared";
 import { after } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { trackKnowledgeAdded } from "../../../../../../lib/analytics/owner-events";
 import { processSource } from "../../../../../../lib/knowledge";
 import {
   PROJECT_ID,
@@ -25,6 +26,7 @@ vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("../../../../../../lib/supabase/owner", () => ({ createOwnerClient: vi.fn() }));
 vi.mock("../../../../../../lib/supabase/service", () => ({ createServiceClient: vi.fn() }));
 vi.mock("../../../../../../lib/knowledge", () => ({ processSource: vi.fn(), KNOWLEDGE_BUCKET: "knowledge" }));
+vi.mock("../../../../../../lib/analytics/owner-events", () => ({ trackKnowledgeAdded: vi.fn() }));
 
 const KEY = `${PROJECT_ID}/0b0b0b0b-0000-4000-8000-000000000001.pdf`;
 
@@ -36,6 +38,7 @@ beforeEach(() => {
   authMock.mockReset().mockResolvedValue({ userId: USER });
   vi.mocked(after).mockReset();
   vi.mocked(processSource).mockReset().mockResolvedValue({ status: "ready", chunkCount: 1 });
+  vi.mocked(trackKnowledgeAdded).mockReset();
   owner = fakeClient();
   service = fakeClient();
   storage = withStorage(service);
@@ -103,6 +106,35 @@ describe("POST /api/projects/:id/knowledge/finalize", () => {
     expect(processSource).not.toHaveBeenCalled();
     await runAfter();
     expect(processSource).toHaveBeenCalledWith({ sourceId: SOURCE_ID, projectId: PROJECT_ID, type: "pdf", storageKey: KEY });
+  });
+
+  it("sends knowledge_added once the file is ready, with project_id and the file type only", async () => {
+    owned();
+    claimWins();
+    storage.bucket.download.mockResolvedValueOnce({ data: blob(PDF), error: null });
+    await finalize();
+    expect(trackKnowledgeAdded).not.toHaveBeenCalled();
+    await runAfter();
+    expect(vi.mocked(trackKnowledgeAdded).mock.calls).toEqual([[USER, PROJECT_ID, "pdf"]]);
+    expect(JSON.stringify(vi.mocked(trackKnowledgeAdded).mock.calls)).not.toContain(KEY); // no file name
+  });
+
+  it("doesn't send knowledge_added for a failed or refused file", async () => {
+    owned();
+    claimWins();
+    storage.bucket.download.mockResolvedValueOnce({ data: blob(PDF), error: null });
+    vi.mocked(processSource).mockResolvedValue({ status: "failed", reason: "no_text" });
+    await finalize();
+    await runAfter();
+
+    vi.mocked(after).mockReset();
+    owned();
+    claimWins();
+    storage.bucket.download.mockResolvedValueOnce({ data: blob("<html>not a pdf</html>"), error: null });
+    service.queue("knowledge_sources", ok(null));
+    expect((await finalize()).status).toBe(400);
+    await runAfter();
+    expect(trackKnowledgeAdded).not.toHaveBeenCalled();
   });
 
   it("finalizing twice: the second claim matches no row → 404, and processing starts once", async () => {

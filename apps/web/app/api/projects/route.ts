@@ -6,6 +6,7 @@ import {
   type ListProjectsResponse,
 } from "@askwell/shared";
 import { ensureAccount } from "../../../lib/accounts/ensure-account";
+import { trackProjectCreated } from "../../../lib/analytics/owner-events";
 import { createProjectForOwner, readOwnerPlan } from "../../../lib/projects/create-project";
 import { apiError, currentUserId, internalError, readJson, unauthorized } from "../../../lib/projects/http";
 import { toProject } from "../../../lib/projects/to-project";
@@ -50,6 +51,7 @@ export async function POST(request: Request): Promise<Response> {
       return apiError(403, "plan_limit", `Your plan allows ${projects}. Upgrade to add more.`);
     }
 
+    trackProjectCreated(userId, result.project.id, plan);
     const body: CreateProjectResponse = { project: toProject(result.project) };
     return Response.json(body, { status: 201 });
   } catch (error) {

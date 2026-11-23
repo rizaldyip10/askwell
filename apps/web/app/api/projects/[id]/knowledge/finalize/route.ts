@@ -8,7 +8,8 @@
 //    `uploading`) → 400, so the browser can upload and finalize again. Over
 //    MAX_KNOWLEDGE_FILE_BYTES, or a .pdf whose bytes don't start with `%PDF-` → the object
 //    and the source are deleted → 400 validation_error.
-// 3. processSource in after() → 200 with the source (`processing`).
+// 3. processSource in after() → 200 with the source (`processing`). `knowledge_added` is sent
+//    once processing ends `ready`.
 
 import {
   finalizeKnowledgeRequestSchema,
@@ -18,6 +19,7 @@ import {
   type KnowledgeFileType,
 } from "@askwell/shared";
 import { after } from "next/server";
+import { trackKnowledgeAdded } from "../../../../../../lib/analytics/owner-events";
 import { KNOWLEDGE_BUCKET, processSource } from "../../../../../../lib/knowledge";
 import {
   checkOwnedProjectRequest,
@@ -39,7 +41,7 @@ export async function POST(request: Request, context: Context): Promise<Response
   try {
     const checked = await checkOwnedProjectRequest(request, context, finalizeKnowledgeRequestSchema);
     if (checked instanceof Response) return checked;
-    const { projectId, body } = checked;
+    const { userId, projectId, body } = checked;
     const service = createServiceClient();
 
     // 1. The claim.
@@ -73,8 +75,12 @@ export async function POST(request: Request, context: Context): Promise<Response
       return apiError(400, "validation_error", refusal);
     }
 
-    // 3. Process after the response.
-    after(() => processSource({ sourceId: source.id, projectId, type, storageKey }));
+    // 3. Process after the response. `knowledge_added` only once the source is `ready`:
+    // never for a refused (above) or failed file.
+    after(async () => {
+      const processed = await processSource({ sourceId: source.id, projectId, type, storageKey });
+      if (processed.status === "ready") trackKnowledgeAdded(userId, projectId, type);
+    });
 
     const response: FinalizeKnowledgeResponse = { source: toKnowledgeSource(source) };
     return Response.json(response);

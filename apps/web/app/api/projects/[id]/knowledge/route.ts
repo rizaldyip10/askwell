@@ -6,6 +6,7 @@
 
 import { pasteKnowledgeRequestSchema, type PasteKnowledgeResponse } from "@askwell/shared";
 import { after } from "next/server";
+import { trackKnowledgeAdded } from "../../../../../lib/analytics/owner-events";
 import { processSource } from "../../../../../lib/knowledge";
 import {
   checkOwnedProjectRequest,
@@ -47,7 +48,9 @@ export async function POST(request: Request, context: Context): Promise<Response
     const source = reserved.source;
     after(async () => {
       await removeKnowledgeFiles(service, reserved.reclaimedKeys, "paste");
-      await processSource({ sourceId: source.id, projectId, type: "text", text: body.text });
+      const processed = await processSource({ sourceId: source.id, projectId, type: "text", text: body.text });
+      // Only once the source is usable: not when processing failed.
+      if (processed.status === "ready") trackKnowledgeAdded(userId, projectId, "text");
     });
 
     const response: PasteKnowledgeResponse = { source: toKnowledgeSource(source) };
