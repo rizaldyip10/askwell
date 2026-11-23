@@ -1,17 +1,22 @@
 "use client";
 
-import type { Project } from "@askwell/shared";
+import type { Project, ProjectUsage } from "@askwell/shared";
 import Link from "next/link";
 import { useState } from "react";
 import { projectPath } from "../../lib/auth/routes";
 import { Button } from "../ui/button";
 import { GlassPanel } from "../ui/glass-panel";
+import { UsageLine } from "../usage/usage-line";
 import { DeleteProjectDialog } from "./delete-project-dialog";
 import { formatDate } from "./format";
 import { RenameProjectDialog } from "./rename-project-dialog";
 
-/** One project in the list. The name is a link to the project (the whole card is clickable). */
-export function ProjectCard({ project }: { project: Project }) {
+/**
+ * One project in the list. The name is a link to the project (the whole card is clickable).
+ * `usage` comes from the server page (one owner_activity() call for all cards); null shows
+ * "Usage unavailable".
+ */
+export function ProjectCard({ project, usage }: { project: Project; usage: ProjectUsage | null }) {
   const [dialog, setDialog] = useState<"rename" | "delete" | null>(null);
   const close = () => setDialog(null);
 
@@ -30,6 +35,7 @@ export function ProjectCard({ project }: { project: Project }) {
           Created <time dateTime={project.createdAt}>{formatDate(project.createdAt)}</time>
         </p>
       </div>
+      <UsageLine usage={usage} />
       {/* Above the card-wide link. */}
       <div className="relative z-10 flex gap-2">
         <Button variant="secondary" onClick={() => setDialog("rename")} aria-label={`Rename ${project.name}`}>
