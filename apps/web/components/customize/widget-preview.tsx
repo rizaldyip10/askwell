@@ -86,31 +86,33 @@ export function WidgetPreview({ config }: { config: WidgetConfig }) {
           data-testid="preview-panel"
           data-animation={config.animation}
           style={panelStyle}
-          // `isolate`: keeps the header's backdrop blur inside the rounded corners (Chromium).
           className={cn(
-            "absolute isolate flex h-[300px] w-[min(300px,calc(100%-2rem))] flex-col overflow-hidden rounded-[20px] shadow-[0_24px_64px_-16px_rgba(0,0,0,0.35),0_0_0_1px_rgba(0,0,0,0.08)]",
-            PANEL_SURFACE,
+            "absolute h-[300px] w-[min(300px,calc(100%-2rem))] rounded-[20px] shadow-[0_24px_64px_-16px_rgba(0,0,0,0.35),0_0_0_1px_rgba(0,0,0,0.08)]",
             PANEL_CORNER[config.position],
             phase === "open" ? "transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none" : "transition-none",
           )}
         >
-          <PanelHeader as="p" headerText={config.headerText} />
-          <ol className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-4 py-4">
-            {SAMPLE.map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))}
-          </ol>
-          <PanelFooter>
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 min-w-0 flex-1 items-center rounded-pill border border-glass-line bg-white px-4 text-sm text-fg-subtle">
-                Type your message…
+          {/* clip-path, not just overflow-hidden: Chromium lets the header's backdrop blur
+              paint past rounded corners otherwise. The shadow stays on the outer card. */}
+          <div className={cn("flex h-full flex-col overflow-hidden rounded-[20px] [clip-path:inset(0_round_20px)]", PANEL_SURFACE)}>
+            <PanelHeader as="p" headerText={config.headerText} />
+            <ol className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-4 py-4">
+              {SAMPLE.map((message) => (
+                <MessageBubble key={message.id} message={message} />
+              ))}
+            </ol>
+            <PanelFooter>
+              <div className="flex items-center gap-2">
+                <div className="flex h-10 min-w-0 flex-1 items-center rounded-pill border border-glass-line bg-white px-4 text-sm text-fg-subtle">
+                  Type your message…
+                </div>
+                <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-primary text-primary-fg opacity-40">
+                  <SendIcon />
+                </div>
               </div>
-              <div className="grid size-10 shrink-0 place-items-center rounded-pill bg-primary text-primary-fg opacity-40">
-                <SendIcon />
-              </div>
-            </div>
-            {config.showBadge ? <PoweredBy /> : null}
-          </PanelFooter>
+              {config.showBadge ? <PoweredBy /> : null}
+            </PanelFooter>
+          </div>
         </div>
 
         <div
