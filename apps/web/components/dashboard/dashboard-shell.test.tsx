@@ -36,3 +36,23 @@ describe("DashboardShell project nav", () => {
     expect(html).toContain("Project not found");
   });
 });
+
+describe("DashboardShell plan badge", () => {
+  const renderWith = (plan: "free" | "pro" | null) => {
+    pathname = "/dashboard";
+    return renderToStaticMarkup(<DashboardShell plan={plan}>{null}</DashboardShell>);
+  };
+
+  it("shows the plan next to the profile button in the sidebar and the mobile top bar", () => {
+    const free = renderWith("free");
+    expect(free.match(/data-plan="free"/g)).toHaveLength(2);
+    const [sidebar, topBar] = [free.slice(free.indexOf("<aside"), free.indexOf("</aside>")), free.slice(free.indexOf("<header"))];
+    expect(sidebar).toContain('data-plan="free"');
+    expect(topBar).toContain('data-plan="free"');
+    expect(renderWith("pro").match(/aria-label="Pro plan. Open billing"/g)).toHaveLength(2);
+  });
+
+  it("shows no badge when the plan couldn't be read", () => {
+    expect(renderWith(null)).not.toContain("data-plan");
+  });
+});

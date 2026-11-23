@@ -4,7 +4,8 @@ import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useId, useState, type ReactNode } from "react";
-import { APP_NAME } from "@askwell/shared";
+import { APP_NAME, type Plan } from "@askwell/shared";
+import { PlanBadge } from "../billing/plan-badge";
 import { Logo } from "../landing/logo";
 import { cn } from "../ui/cn";
 import { projectIdFromPath } from "../../lib/auth/routes";
@@ -69,9 +70,10 @@ function DashboardNav({ onNavigate }: { onNavigate?: () => void }) {
 
 /**
  * Dashboard frame: a glass sidebar from 768px up; below that, a top bar
- * with a menu button that opens the same nav.
+ * with a menu button that opens the same nav. `plan` (read on the server by the layout) shows
+ * as a Free/Pro badge next to the profile button; null hides it.
  */
-export function DashboardShell({ children }: { children: ReactNode }) {
+export function DashboardShell({ children, plan = null }: { children: ReactNode; plan?: Plan | null }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuId = useId();
   const pathname = usePathname();
@@ -94,6 +96,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="flex items-center gap-3 border-t border-glass-line pt-4">
             <UserButton />
+            {plan ? <PlanBadge plan={plan} /> : null}
           </div>
         </div>
       </aside>
@@ -103,6 +106,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
         <div className="flex h-14 items-center justify-between gap-3 px-4">
           <Brand />
           <div className="flex items-center gap-2">
+            {plan ? <PlanBadge plan={plan} /> : null}
             <UserButton />
             <button
               type="button"
