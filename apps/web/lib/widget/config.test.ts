@@ -102,4 +102,14 @@ describe("getWidgetConfigByKey", () => {
     result = { data: null, error: { message: "boom" } };
     await expect(getWidgetConfigByKey(KEY)).rejects.toThrow(/boom/);
   });
+
+  it("a Pro owner who downgrades keeps the stored config, but the widget shows the defaults again", async () => {
+    // Same stored row, before and after the downgrade: only accounts.plan changes.
+    result = project("pro");
+    await expect(getWidgetConfigByKey(KEY)).resolves.toEqual(STORED);
+
+    result = project("free");
+    await expect(getWidgetConfigByKey(KEY)).resolves.toEqual({ ...DEFAULT_WIDGET_CONFIG, showBadge: true });
+    expect(calls.from).not.toHaveBeenCalledWith("widget_configs"); // read only: nothing rewritten
+  });
 });
