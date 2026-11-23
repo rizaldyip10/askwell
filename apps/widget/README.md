@@ -173,3 +173,76 @@ Notes:
   with the Clerk Backend API (`POST /v1/users`, a `+clerk_test` email), then sign in on the preview.
   `signed_up` still fires: it's sent when the account row is created on the first dashboard load.
 - The round button at the right edge of the dashboard screenshots is Vercel's preview toolbar, not the app.
+
+## Phase 5 check: billing, customize, upgrade funnel
+
+Run it on a preview with every Phase 5 task merged. It reuses the cross-origin setup above. Use brand-new test
+owners, and delete them afterwards (end any Pro subscription first).
+
+**Prerequisites:**
+- **Webhook:** the Clerk webhook endpoint (`subscriptionItem.*`) must point at **this** preview:
+  `<preview>/api/clerk/webhook?x-vercel-protection-bypass=<VERCEL_AUTOMATION_BYPASS_SECRET>`.
+  The product owner changes it in the Clerk Dashboard. Keeping the same endpoint keeps the same signing secret.
+- **Sandbox access:** checkout needs `*.stripe.com`, `*.stripe.network`, `*.stripecdn.com` and `*.hcaptcha.com`.
+
+1. **Free owner:** open `/` (the funnel's landing step), sign in as a new `+clerk_test` owner, create a project, paste
+   knowledge, copy the snippet on **Install**, and chat once from the plain HTML page (`first_chat`).
+   Wait a few seconds after each step in the browser before closing it, so posthog-js sends its batch.
+2. **Customize on Free:** the form is locked with "Upgrade to Pro". Force a save (remove `disabled` from the
+   `<fieldset>` in devtools and submit). Expect **402** and "Pro feature: upgrade to save."
+3. **Upgrade:** Billing → Pro → **Subscribe** → **Pay with test card** (Clerk development mode) → **Continue**.
+   The page returns to `/dashboard/billing?checkout=done`. It shows "Upgrade processing…" until the webhook lands,
+   then Pro, with no manual reload. Check `select plan from accounts where clerk_user_id = '<id>'` on dev.
+4. **Customize on Pro:** change the color and corner, then **Save**. Only the changed fields are sent.
+   Reload the plain HTML page: the new look shows.
+5. **PostHog (API):** `upgraded` under the owner's person. Refresh the saved **"Owner funnel"**
+   (`GET /api/projects/<id>/insights/<id>/?refresh=force_blocking`): its last step has a count. A count alone
+   doesn't say who, so list the people who converted through the last step (PostHog MCP `query-funnel-actors`
+   with `funnelStep: 7` and the insight's query; in the UI, click the step's count). The test owner's Clerk ID
+   must be in that list.
+6. **Cancel:** Billing → **Manage subscription** → Billing → **Manage** → **Cancel subscription**. Pro stays
+   ("Canceled · Ends <date>"), and `accounts.plan` stays `pro`. To test the end without waiting a year, end the item
+   on the dev instance:
+   `DELETE https://api.clerk.com/v1/billing/subscription_items/<item>?end_now=true` (Backend API, secret key).
+   Expect `free` on dev, defaults on the plain HTML page, and Customize locked again.
+
+### Results from the P5B-T05 run (Nov 23, 2026)
+
+| Check | Result |
+|---|---|
+| Free owner flow | Pass. Landing → sign-in → project → pasted text (Ready) → snippet → chat answered from the knowledge |
+| Customize on Free | Pass. Locked, with an upgrade link to Billing; a forced save got **402** and "Pro feature: upgrade to save. See plans" |
+| No Pro trial (product owner) | Pass. Checkout: "Total due today $120.00"; Clerk's subscription item `is_free_trial: false` |
+| Test-card upgrade → Pro, no manual reload | Pass. Pay → Continue → back on `?checkout=done` 3 s later, already "You're on Pro.", Pro badge on the plan and in the sidebar. `accounts.plan = pro` on dev. The webhook landed before the redirect, so "Upgrade processing…" never showed in this run |
+| Save after the upgrade → plain HTML page | Pass. PATCH body `{"buttonColor":"#1d4ed8","position":"top-left"}`. On reload the button went from `rgb(10,10,10)` bottom-right to `rgb(29,78,216)` top-left |
+| `upgraded` in PostHog | Pass. `upgraded` (`plan: pro`) under the owner's Clerk ID, 4 s after the payment |
+| "Owner funnel" last step | Pass. After a refresh: landing 5 → signed_up 3 → project 3 → knowledge 3 → snippet 2 → first_chat 2 → **upgraded 1**. The people who converted through step 7 (`query-funnel-actors`, the insight's 30-day query): only `user_3MVTpxPOQKlPus2HqEFZ6qaQAjt`, this run's test owner. The other two test owners also sent `upgraded` but drop at earlier steps |
+| Cancel keeps Pro until the period ends | Pass. Portal: "Pro · Active · Canceled · Ends Nov 23, 2027", Free "Upcoming". `accounts.plan` still `pro` after the webhook |
+| End now → Free + defaults | Pass. Ended with `end_now=true`: `accounts.plan = free` within 4 s. The plain HTML page shows the default black bottom-right button again; Billing says Free; Customize is locked; the stored look (`#1d4ed8`, top-left) is kept |
+| `past_due` keeps Pro (product owner) | Not testable here: the test card can't fail a renewal on demand |
+
+| Free: widget chat | Customize locked | Forced save → 402 | Checkout |
+|---|---|---|---|
+| ![Chat on the plain HTML page](docs/phase5/widget-chat-free.png) | ![Customize locked on Free](docs/phase5/customize-free-locked.png) | ![402 upgrade to save](docs/phase5/customize-free-402.png) | ![Clerk checkout with the test card](docs/phase5/checkout.png) |
+
+| Payment successful | Billing on Pro | Saved on Pro | Plain HTML page after reload |
+|---|---|---|---|
+| ![Payment was successful](docs/phase5/payment-successful.png) | ![Pro badge](docs/phase5/billing-pro.png) | ![Saved](docs/phase5/customize-pro-saved.png) | ![Blue button top-left](docs/phase5/host-new-look.png) |
+
+| Canceled, Pro until the period ends | After ending: defaults again |
+|---|---|
+| ![Canceled, ends Nov 23, 2027](docs/phase5/portal-canceled.png) | ![Default black button](docs/phase5/host-defaults-after-end.png) |
+
+Notes:
+- **"Pay with test card" pays at once.** Clerk's development mode button completes the payment, then shows
+  "Payment was successful" with **Continue**. Click Continue to get the return to Billing.
+- **Browser events need time to send.** posthog-js sends in batches. Closing the browser right after a click loses
+  the event: in one run, `snippet_copied` never arrived, so that owner dropped out of the funnel. The test was
+  repeated with a new owner and waits.
+- **Saved insights are cached.** The saved "Owner funnel" served an old result until refreshed with
+  `?refresh=force_blocking`. The PostHog UI's refresh button does the same.
+- **Preview-only noise:** on previews, Vercel's feedback toolbar (`vercel.live`) loads inside `/embed` when the
+  browser has Vercel cookies. One run logged "Failed to read the 'sessionStorage' property" there. The chat worked,
+  and production has no toolbar.
+- **Test data:** three test owners (one for the live upgrade view, one whose `snippet_copied` was lost, and the main
+  one). Their Pro subscriptions were ended, then the owners and projects were deleted on dev and in Clerk.
