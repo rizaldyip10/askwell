@@ -7,7 +7,7 @@ import { EmptyState } from "../dashboard/empty-state";
 import { ButtonLink, Button } from "../ui/button";
 import { GlassPanel } from "../ui/glass-panel";
 import { projectSectionPath } from "../../lib/auth/routes";
-import { appendPage, fetchConversationsPage, type ListState } from "./api";
+import { fetchConversationsPage, initialListState, settleLoadMore, type ListState } from "./api";
 import { ConversationList } from "./conversation-list";
 
 type Props = { projectId: string; initial: ListConversationsResponse };
@@ -20,28 +20,29 @@ type Props = { projectId: string; initial: ListConversationsResponse };
 export function ConversationsView({ projectId, initial }: Props) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
-  const [state, setState] = useState<ListState>(initial);
+  const [state, setState] = useState<ListState>(() => initialListState(initial));
   const [previous, setPrevious] = useState(initial);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { error } = state;
 
   if (previous !== initial) {
     // A refresh brought a new first page: start over from it (React's "previous props" pattern).
+    // A Load more still in flight then finds a different list and is dropped (settleLoadMore).
     setPrevious(initial);
-    setState(initial);
-    setError(null);
+    setState(initialListState(initial));
   }
 
   const refresh = () => startRefresh(() => router.refresh());
 
   async function loadMore() {
     if (!state.nextCursor || loadingMore) return;
+    // The list this request belongs to (the old error cleared). Only it may take the result.
+    const snapshot: ListState = { ...state, error: null };
+    setState(snapshot);
     setLoadingMore(true);
-    setError(null);
     const result = await fetchConversationsPage(projectId, state.nextCursor);
     setLoadingMore(false);
-    if (result.ok) setState((s) => appendPage(s, result.data));
-    else setError(result.message);
+    setState((current) => settleLoadMore(current, snapshot, result));
   }
 
   const refreshButton = (

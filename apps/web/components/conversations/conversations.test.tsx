@@ -1,7 +1,7 @@
 import type { ConversationSummary, ListConversationsResponse, Message } from "@askwell/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { appendPage, fetchConversationsPage } from "./api";
+import { appendPage, fetchConversationsPage, initialListState, settleLoadMore } from "./api";
 import { ConversationsView } from "./conversations-view";
 import { formatFullTime, formatShortTime, messageCountLabel } from "./format";
 import { conversationPath, conversationsPath } from "./paths";
@@ -87,10 +87,30 @@ describe("Load more", () => {
   });
 
   it("appends the next page under the shown rows, without duplicates", () => {
-    const state = { conversations: [summary(3), summary(2)], nextCursor: "c2" };
+    const state = { conversations: [summary(3), summary(2)], nextCursor: "c2", error: null };
     const next = appendPage(state, { conversations: [summary(2), summary(1)], nextCursor: null });
     expect(next.conversations.map((c) => c.visitorId)).toEqual(["v3", "v2", "v1"]);
     expect(next.nextCursor).toBeNull();
+  });
+
+  it("applies a finished Load more to the list it started from", () => {
+    const snapshot = initialListState({ conversations: [summary(3)], nextCursor: "c3" });
+    const page = { conversations: [summary(2)], nextCursor: null };
+    const ok = settleLoadMore(snapshot, snapshot, { ok: true, data: page });
+    expect(ok.conversations.map((c) => c.visitorId)).toEqual(["v3", "v2"]);
+    expect(ok.nextCursor).toBeNull();
+    const failed = settleLoadMore(snapshot, snapshot, { ok: false, status: 500, code: "internal", message: "Nope" });
+    expect(failed).toEqual({ ...snapshot, error: "Nope" });
+  });
+
+  it("drops a Load more (page or error) that finishes after a Refresh replaced the list", () => {
+    const snapshot = initialListState({ conversations: [summary(3)], nextCursor: "c3" });
+    const refreshed = initialListState({ conversations: [summary(4), summary(3)], nextCursor: "c3b" });
+    const late = { conversations: [summary(1)], nextCursor: null };
+    expect(settleLoadMore(refreshed, snapshot, { ok: true, data: late })).toBe(refreshed);
+    expect(
+      settleLoadMore(refreshed, snapshot, { ok: false, status: 500, code: "internal", message: "Nope" }),
+    ).toBe(refreshed);
   });
 });
 
