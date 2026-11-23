@@ -104,7 +104,8 @@ about 25 messages). It reuses the cross-origin setup above. Delete the test proj
 **Prerequisites:** the preview needs `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST` (plus
 `ARCJET_KEY` and `OPENAI_API_KEY` from Phase 3). Session replay must be turned on in the PostHog project
 (Settings → Session replay → "Record user sessions"). The code asks for replays, but PostHog only stores
-them when this is on.
+them when this is on. After turning it on, open a new page: a page loaded earlier may still use the cached
+config without recording.
 
 1. **Owner flow.** In one browser context: open `/` (the funnel's landing step), sign in as the new owner,
    create a project, paste text knowledge and wait for **Ready**, then copy the snippet on **Install**.
@@ -140,7 +141,7 @@ them when this is on.
 | Owner events | Pass. `signed_up`, `project_created`, `knowledge_added`, `snippet_copied` and `first_chat` once each, all under the owner's Clerk ID and one person |
 | AI traces with cost | Pass. 22 `$ai_generation` events in 4 traces, one per conversation. The first chat's trace: 2 replies, 538 input tokens, $0.00056. All 22: $0.0072 |
 | `/embed` sends nothing to PostHog | Pass. No `/relay` or PostHog request from the iframe; no event with an `/embed` URL |
-| Dashboard session replay | Pending. Recording is off in the PostHog project settings; the product owner is turning it on |
+| Dashboard session replay | Pass, after the product owner turned on recording. Replay `01a207e2-905e-7a79-a9f5-94aaf97c8666`: 56 s, sign-in → dashboard → project overview, Conversations and Knowledge, 3 clicks, under the owner's Clerk ID (checked through the recordings API) |
 | "Owner funnel" insight | Pass. Saved; the test owner went through landing → `first_chat` (100% each step); `upgraded` is 0 |
 
 #### Checks left open on #34 (PostHog setup) and #35 (chat analytics)
@@ -152,7 +153,7 @@ them when this is on.
 | #34 | Sign-out resets | **Fail, moved to P4C-T09.** After sign-out, the `/sign-in` and `/` pageviews still carry the owner's Clerk ID (same person), so `reset()` didn't run |
 | #34 | Client error in Error tracking | Pass. A thrown `Error("P4C-T08 client error check")` on `/dashboard` arrived as `$exception` with an issue ID, under the owner |
 | #34 | Server error in Error tracking | Not run, moved to P4C-T09. Every route answers bad input with a 4xx, so a server error needs a throwing route (on a throwaway branch's preview) |
-| #34 | Dashboard session replay | See above |
+| #34 | Dashboard session replay | Pass (see above) |
 | #34 | `/embed` sends nothing | Pass (see above) |
 | #35 | Generation with model, tokens, latency, project ID, cost; no text | Pass. E.g. `gpt-5.4-mini`, 270 in / 17 out tokens, 1.22 s, $0.000279. No `$ai_input` / `$ai_output_choices` |
 | #35 | Two replies in one conversation share one trace | Pass. The first conversation's 2 replies have the same `$ai_trace_id` (its conversation ID) |
