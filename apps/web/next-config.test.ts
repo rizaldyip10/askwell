@@ -1,5 +1,5 @@
 import { unstable_getResponseFromNextConfig } from "next/experimental/testing/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import nextConfig from "./next.config";
 
 async function headersFor(path: string): Promise<Headers> {
@@ -35,6 +35,31 @@ describe("/widget.js headers", () => {
   it("is not sent on other paths", async () => {
     const h = await headersFor("/");
     expect(h.get("access-control-allow-origin")).toBeNull();
+  });
+});
+
+describe("PostHog reverse proxy", () => {
+  it("doesn't redirect PostHog's trailing-slash paths", () => {
+    expect(nextConfig.skipTrailingSlashRedirect).toBe(true);
+  });
+
+  it("rewrites /relay to the configured PostHog host", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://us.i.posthog.com");
+    try {
+      const rewrites = await nextConfig.rewrites?.();
+      expect(rewrites).toEqual([
+        { source: "/relay/static/:path*", destination: "https://us-assets.i.posthog.com/static/:path*" },
+        { source: "/relay/array/:path*", destination: "https://us-assets.i.posthog.com/array/:path*" },
+        { source: "/relay/:path*", destination: "https://us.i.posthog.com/:path*" },
+      ]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it.each(["/relay/e/", "/relay/static/array.js"])("keeps the frame rules on %s", async (path) => {
+    const h = await headersFor(path);
+    expect(h.get("content-security-policy")).toBe("frame-ancestors 'self'");
   });
 });
 
