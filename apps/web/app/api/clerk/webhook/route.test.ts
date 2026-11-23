@@ -152,6 +152,15 @@ describe("POST /api/clerk/webhook", () => {
     expect(trackUpgraded).not.toHaveBeenCalled();
   });
 
+  it("past due (Clerk retrying the card) → stays pro, no new `upgraded`", async () => {
+    const db = fakeAccounts({ [USER]: "pro" });
+    getSubscription.mockResolvedValue(subscription(proItem("past_due")));
+    const res = await POST(signed(itemEvent("subscriptionItem.pastDue")));
+    expect(await res.json()).toEqual({ received: true, plan: "pro", changed: false });
+    expect(db.rows.get(USER)).toBe("pro");
+    expect(trackUpgraded).not.toHaveBeenCalled();
+  });
+
   it("ended → free", async () => {
     const db = fakeAccounts({ [USER]: "pro" });
     getSubscription.mockResolvedValue(subscription(proItem("ended", { endedAt: Date.now() - DAY })));

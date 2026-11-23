@@ -40,7 +40,17 @@ describe("planFromSubscription", () => {
     expect(planFromSubscription(sub(item("pro", "ended", { endedAt: NOW - DAY }), item("free", "active")), NOW)).toBe("free");
   });
 
-  it.each(["expired", "past_due", "abandoned", "incomplete", "upcoming"])("pro item %s → free", (status) => {
+  it("past due (Clerk retrying the card) → still pro", () => {
+    expect(planFromSubscription(sub(item("pro", "past_due")), NOW)).toBe("pro");
+    // Even past the period end: Pro holds until the item ends.
+    expect(planFromSubscription(sub(item("pro", "past_due", { periodEnd: NOW - DAY })), NOW)).toBe("pro");
+  });
+
+  it("past due with an end time → free", () => {
+    expect(planFromSubscription(sub(item("pro", "past_due", { endedAt: NOW - DAY })), NOW)).toBe("free");
+  });
+
+  it.each(["expired", "abandoned", "incomplete", "upcoming"])("pro item %s → free", (status) => {
     expect(planFromSubscription(sub(item("pro", status)), NOW)).toBe("free");
   });
 

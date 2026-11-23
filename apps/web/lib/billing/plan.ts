@@ -19,12 +19,15 @@ export type SubscriptionLike = { subscriptionItems: readonly SubscriptionItemLik
 /**
  * Whether a Pro item still grants Pro at `now` (ms):
  * - `active`, including one already canceled for the period end (Clerk keeps it active).
+ * - `past_due` and not ended: Clerk is retrying the card, and the owner keeps Pro meanwhile
+ *   (product owner decision on PR #41). It drops to Free when the item ends.
  * - `canceled` but not ended yet: the paid period still runs until `periodEnd`.
- * Anything else (ended, expired, past due, abandoned, incomplete, upcoming) does not.
+ * Anything else (ended, expired, abandoned, incomplete, upcoming) does not.
  */
 function grantsPro(item: SubscriptionItemLike, now: number): boolean {
   if (item.plan?.slug !== PRO_PLAN_SLUG) return false;
   if (item.status === "active") return true;
+  if (item.status === "past_due") return item.endedAt === null;
   if (item.status === "canceled") return item.endedAt === null && item.periodEnd !== null && item.periodEnd > now;
   return false;
 }
