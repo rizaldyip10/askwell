@@ -1,12 +1,13 @@
 "use client";
 
-import { APP_NAME, MESSAGE_MAX_LENGTH, type WidgetConfig } from "@askwell/shared";
+import { MESSAGE_MAX_LENGTH, type WidgetConfig } from "@askwell/shared";
 import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
 import { chatReducer, INITIAL_CHAT_STATE } from "../../lib/embed/chat-state";
 import { closeOnEscape, postToHost } from "../../lib/embed/messaging";
 import { sendVisitorMessage } from "../../lib/embed/send";
 import { getVisitorId } from "../../lib/embed/visitor-id";
 import { MessageBubble, TypingIndicator } from "./message-bubble";
+import { PANEL_SURFACE, PanelFooter, PanelHeader, PoweredBy, SendIcon } from "./panel-parts";
 import { usePanelHidden } from "./use-panel-hidden";
 
 type ChatPanelProps = {
@@ -74,23 +75,11 @@ export function ChatPanel({ config, publicKey, origin }: ChatPanelProps) {
   const empty = state.messages.length === 0 && !state.waiting;
 
   return (
-    <div
-      ref={rootRef}
-      className="flex h-dvh flex-col bg-linear-to-b from-white to-gray-100 text-fg"
-    >
-      <header className="flex items-center justify-between gap-3 border-b border-glass-line bg-glass-strong px-4 py-3 backdrop-blur-glass">
-        <h1 className="truncate text-sm font-semibold tracking-tight">{config.headerText}</h1>
-        <button
-          type="button"
-          aria-label="Close chat"
-          onClick={() => postToHost(window.parent, origin, { type: "askwell:close" })}
-          className="grid size-8 shrink-0 place-items-center rounded-pill text-fg-muted transition-colors hover:bg-glass hover:text-fg focus-visible:outline-2 focus-visible:outline-fg"
-        >
-          <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
-            <path d="M4 4l8 8M12 4l-8 8" />
-          </svg>
-        </button>
-      </header>
+    <div ref={rootRef} className={`flex h-dvh flex-col ${PANEL_SURFACE}`}>
+      <PanelHeader
+        headerText={config.headerText}
+        onClose={() => postToHost(window.parent, origin, { type: "askwell:close" })}
+      />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-live="polite">
         {empty ? (
@@ -108,7 +97,7 @@ export function ChatPanel({ config, publicKey, origin }: ChatPanelProps) {
         )}
       </div>
 
-      <div className="border-t border-glass-line bg-glass-strong px-3 pt-3 pb-2 backdrop-blur-glass">
+      <PanelFooter>
         <form onSubmit={onSubmit} className="flex items-center gap-2">
           <label htmlFor="askwell-message" className="sr-only">
             Message
@@ -130,15 +119,11 @@ export function ChatPanel({ config, publicKey, origin }: ChatPanelProps) {
             disabled={state.waiting || draft.trim() === ""}
             className="grid size-10 shrink-0 place-items-center rounded-pill bg-primary text-primary-fg transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:opacity-40"
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" />
-            </svg>
+            <SendIcon />
           </button>
         </form>
-        {config.showBadge ? (
-          <p className="mt-2 text-center text-[11px] text-fg-subtle">Powered by {APP_NAME}</p>
-        ) : null}
-      </div>
+        {config.showBadge ? <PoweredBy /> : null}
+      </PanelFooter>
     </div>
   );
 }
