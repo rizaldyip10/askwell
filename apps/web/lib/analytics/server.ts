@@ -2,7 +2,7 @@ import "server-only";
 
 import { after } from "next/server";
 import { PostHog } from "posthog-node";
-import { missingPosthogVariable, posthogMissingMessage, readPosthogEnv } from "./config";
+import { POSTHOG_KEY_VAR, missingPosthogVariable, posthogMissingMessage, readRuntimePosthogEnv } from "./config";
 import type { AnalyticsEvent, AnalyticsProperties } from "./events";
 
 /** Longest a send may take. Analytics must never stall a request. */
@@ -18,14 +18,23 @@ let client: PostHog | null | undefined;
 
 function getClient(): PostHog | null {
   if (client !== undefined) return client;
-  const env = readPosthogEnv();
+  const env = readRuntimePosthogEnv();
   if (!env) {
-    if (process.env.NODE_ENV === "development") console.warn(posthogMissingMessage(missingPosthogVariable()));
+    if (process.env.NODE_ENV === "development") {
+      console.warn(posthogMissingMessage(missingPosthogVariable(process.env[POSTHOG_KEY_VAR])));
+    }
     client = null;
     return null;
   }
   // Serverless: send each event at once rather than batching; the send itself runs in `after()`.
-  client = new PostHog(env.key, { host: env.host, flushAt: 1, flushInterval: 0 });
+  // One attempt, bounded by SEND_TIMEOUT_MS, so no request outlives the deadline below.
+  client = new PostHog(env.key, {
+    host: env.host,
+    flushAt: 1,
+    flushInterval: 0,
+    requestTimeout: SEND_TIMEOUT_MS,
+    fetchRetryCount: 0,
+  });
   return client;
 }
 

@@ -13,19 +13,35 @@ export const POSTHOG_PROXY_PATH = "/relay";
 /** The `defaults` preset posthog-js applies (pageviews on client-side navigation, etc.). */
 export const POSTHOG_DEFAULTS = "2026-08-30";
 
-/**
- * The PostHog key and host, or null when either is unset or blank.
- * The literal `process.env.NEXT_PUBLIC_*` reads let Next.js inline them in the browser bundle.
- */
-export function readPosthogEnv(): PosthogEnv | null {
-  const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
-  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim().replace(/\/+$/, "");
+export const POSTHOG_KEY_VAR = "NEXT_PUBLIC_POSTHOG_KEY";
+export const POSTHOG_HOST_VAR = "NEXT_PUBLIC_POSTHOG_HOST";
+
+function toPosthogEnv(rawKey: string | undefined, rawHost: string | undefined): PosthogEnv | null {
+  const key = rawKey?.trim();
+  const host = rawHost?.trim().replace(/\/+$/, "");
   return key && host ? { key, host } : null;
 }
 
+/**
+ * Browser only: the key and host baked in at build time, or null when either is unset or
+ * blank. The literal `process.env.NEXT_PUBLIC_*` reads are what let Next.js inline them.
+ */
+export function readPosthogEnv(): PosthogEnv | null {
+  return toPosthogEnv(process.env.NEXT_PUBLIC_POSTHOG_KEY, process.env.NEXT_PUBLIC_POSTHOG_HOST);
+}
+
+/**
+ * Server only: the key and host set when the request is served. Next.js also inlines literal
+ * `process.env.NEXT_PUBLIC_*` reads in server code at build time, so this one reads them by
+ * name from the live environment instead.
+ */
+export function readRuntimePosthogEnv(env: Record<string, string | undefined> = process.env): PosthogEnv | null {
+  return toPosthogEnv(env[POSTHOG_KEY_VAR], env[POSTHOG_HOST_VAR]);
+}
+
 /** The variable that's missing, for the "not configured" message. */
-export function missingPosthogVariable(): string {
-  return process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim() ? "NEXT_PUBLIC_POSTHOG_HOST" : "NEXT_PUBLIC_POSTHOG_KEY";
+export function missingPosthogVariable(rawKey: string | undefined): string {
+  return rawKey?.trim() ? POSTHOG_HOST_VAR : POSTHOG_KEY_VAR;
 }
 
 export function posthogMissingMessage(variable: string): string {

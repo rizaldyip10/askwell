@@ -52,7 +52,11 @@ describe("captureServer", () => {
     captureServer("project_created", "user_1", { plan: "free" });
     captureServer("knowledge_added", "user_1");
     expect(ctor).toHaveBeenCalledOnce();
-    expect(ctor).toHaveBeenCalledWith("phc_test", expect.objectContaining({ host: "https://us.i.posthog.com" }));
+    expect(ctor).toHaveBeenCalledWith(
+      "phc_test",
+      // One bounded attempt: no retry or request outlives SEND_TIMEOUT_MS.
+      expect.objectContaining({ host: "https://us.i.posthog.com", requestTimeout: 2000, fetchRetryCount: 0 }),
+    );
     expect(captureImmediate).not.toHaveBeenCalled(); // nothing sent during the request
 
     await Promise.all(afterMock.mock.calls.map(([task]) => task()));

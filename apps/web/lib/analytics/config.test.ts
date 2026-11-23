@@ -6,6 +6,7 @@ import {
   posthogRewrites,
   posthogUiHost,
   readPosthogEnv,
+  readRuntimePosthogEnv,
 } from "./config";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -25,7 +26,20 @@ describe("readPosthogEnv", () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", key);
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", host);
     expect(readPosthogEnv()).toBeNull();
-    expect(missingPosthogVariable()).toBe(missing);
+    expect(readRuntimePosthogEnv()).toBeNull();
+    expect(missingPosthogVariable(key)).toBe(missing);
+  });
+});
+
+describe("readRuntimePosthogEnv", () => {
+  it("reads the live environment by name", () => {
+    expect(
+      readRuntimePosthogEnv({ NEXT_PUBLIC_POSTHOG_KEY: "phc_live", NEXT_PUBLIC_POSTHOG_HOST: "https://eu.i.posthog.com/" }),
+    ).toEqual({ key: "phc_live", host: "https://eu.i.posthog.com" });
+  });
+
+  it("is null when a variable is missing", () => {
+    expect(readRuntimePosthogEnv({ NEXT_PUBLIC_POSTHOG_KEY: "phc_live" })).toBeNull();
   });
 });
 

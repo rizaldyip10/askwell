@@ -31,7 +31,7 @@ async function init(): Promise<PostHog | null> {
 
   const env = readPosthogEnv();
   if (!env) {
-    if (process.env.NODE_ENV === "development") console.error(posthogMissingMessage(missingPosthogVariable()));
+    if (process.env.NODE_ENV === "development") console.error(posthogMissingMessage(missingPosthogVariable(process.env.NEXT_PUBLIC_POSTHOG_KEY)));
     return null;
   }
 
