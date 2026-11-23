@@ -64,6 +64,17 @@ describe("captureServer", () => {
     expect(captureImmediate).toHaveBeenCalledWith({ event: "knowledge_added", distinctId: "user_1", properties: {} });
   });
 
+  it("also sends PostHog's $ai_generation event", async () => {
+    const { captureServer } = await load(true);
+    captureServer("$ai_generation", "user_1", { $ai_model: "gpt-5.4-mini", $ai_input_tokens: 10 });
+    await Promise.all(afterMock.mock.calls.map(([task]) => task()));
+    expect(captureImmediate).toHaveBeenCalledWith({
+      event: "$ai_generation",
+      distinctId: "user_1",
+      properties: { $ai_model: "gpt-5.4-mini", $ai_input_tokens: 10 },
+    });
+  });
+
   it("sends right away outside a request scope", async () => {
     afterMock.mockImplementation(() => {
       throw new Error("`after` was called outside a request scope");

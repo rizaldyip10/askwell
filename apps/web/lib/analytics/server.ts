@@ -3,7 +3,7 @@ import "server-only";
 import { after } from "next/server";
 import { PostHog } from "posthog-node";
 import { POSTHOG_KEY_VAR, missingPosthogVariable, posthogMissingMessage, readRuntimePosthogEnv } from "./config";
-import type { AnalyticsEvent, AnalyticsProperties } from "./events";
+import type { AnalyticsEvent, AnalyticsProperties, PosthogAiEvent } from "./events";
 
 /** Longest a send may take. Analytics must never stall a request. */
 export const SEND_TIMEOUT_MS = 2000;
@@ -72,7 +72,11 @@ function schedule(label: string, send: () => Promise<void>): void {
  * per-project ID and `$process_person_profile: false`. Properties must never hold message
  * text or keys.
  */
-export function captureServer(event: AnalyticsEvent, distinctId: string, properties: AnalyticsProperties = {}): void {
+export function captureServer(
+  event: AnalyticsEvent | PosthogAiEvent,
+  distinctId: string,
+  properties: AnalyticsProperties = {},
+): void {
   try {
     const posthog = getClient();
     if (!posthog) return;

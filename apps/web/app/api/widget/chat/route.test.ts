@@ -7,6 +7,7 @@ import {
   getChatProject,
   matchChunks,
   onChatTrace,
+  onConversationStarted,
   saveChatTurn,
 } from "../../../../lib/chat";
 import { protectWidgetChat } from "../../../../lib/security";
@@ -26,6 +27,7 @@ vi.mock("../../../../lib/chat", () => ({
   matchChunks: vi.fn(),
   saveChatTurn: vi.fn(),
   onChatTrace: vi.fn(),
+  onConversationStarted: vi.fn(),
 }));
 
 const KEY = "pk_a1b2c3d4e5f6a7b8c9d0e1f2";
@@ -44,6 +46,8 @@ const match = vi.mocked(matchChunks);
 const answer = vi.mocked(answerFromChunks);
 const save = vi.mocked(saveChatTurn);
 const trace = vi.mocked(onChatTrace);
+const started = vi.mocked(onConversationStarted);
+const OWNER = "user_owner";
 
 const USAGE = { model: "gpt-5.4-mini", inputTokens: 100, outputTokens: 20, totalTokens: 120 };
 const CHUNKS = [{ id: "c1", sourceId: "s1", content: "We open 9 to 5.", similarity: 0.8 }];
@@ -77,9 +81,9 @@ function expectNotCounted() {
 
 let errorLog: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
-  for (const fn of [protect, project, belongs, consume, embed, match, answer, save, trace]) fn.mockReset();
+  for (const fn of [protect, project, belongs, consume, embed, match, answer, save, trace, started]) fn.mockReset();
   protect.mockResolvedValue({ allowed: true });
-  project.mockResolvedValue({ id: PROJECT, plan: "free" });
+  project.mockResolvedValue({ id: PROJECT, ownerId: OWNER, plan: "free" });
   belongs.mockResolvedValue(true);
   consume.mockResolvedValue({ ok: true, used: 1 });
   embed.mockResolvedValue([0.1, 0.2]);
@@ -122,7 +126,7 @@ describe("POST /api/widget/chat", () => {
   });
 
   it("uses the Pro limit for a Pro owner, read on the server", async () => {
-    project.mockResolvedValue({ id: PROJECT, plan: "pro" });
+    project.mockResolvedValue({ id: PROJECT, ownerId: OWNER, plan: "pro" });
     await post(validBody());
     expect(consume).toHaveBeenCalledWith(PROJECT, PLAN_LIMITS.pro.messagesPerMonth);
   });
@@ -134,10 +138,34 @@ describe("POST /api/widget/chat", () => {
     expect(save).toHaveBeenCalledWith(expect.objectContaining({ conversationId: CONVO }));
   });
 
-  it("passes usage, latency and chunk count to onChatTrace, never the message", async () => {
+  it("traces after the save, with the owner and the saved conversation id, never the message", async () => {
     await post(validBody());
-    expect(trace).toHaveBeenCalledWith({ projectId: PROJECT, usage: USAGE, latencyMs: expect.any(Number), chunkCount: 1 });
+    expect(trace).toHaveBeenCalledWith({
+      projectId: PROJECT,
+      ownerId: OWNER,
+      conversationId: CONVO,
+      usage: USAGE,
+      latencyMs: expect.any(Number),
+      chunkCount: 1,
+    });
+    expect(trace.mock.invocationCallOrder[0]).toBeGreaterThan(save.mock.invocationCallOrder[0]!);
     expect(JSON.stringify(trace.mock.calls)).not.toContain(MESSAGE);
+  });
+
+  it("reports a new conversation (for first_chat), not a continued one", async () => {
+    await post(validBody());
+    expect(started).toHaveBeenCalledWith({ projectId: PROJECT, ownerId: OWNER, conversationId: CONVO });
+    started.mockClear();
+    await post(validBody({ conversationId: CONVO }));
+    expect(started).not.toHaveBeenCalled();
+    expect(trace).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: CONVO }));
+  });
+
+  it("sends no analytics when the turn wasn't saved", async () => {
+    save.mockResolvedValue({ ok: false, reason: "conversation_not_found" });
+    await post(validBody({ conversationId: CONVO }));
+    expect(trace).not.toHaveBeenCalled();
+    expect(started).not.toHaveBeenCalled();
   });
 
   it("400 validation_error for a bad body, before Arcjet and without counting", async () => {

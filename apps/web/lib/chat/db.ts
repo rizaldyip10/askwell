@@ -10,6 +10,8 @@ import { createServiceClient, type ServiceClient } from "../supabase/service";
 
 export interface ChatProject {
   id: string;
+  /** The owner's Clerk user ID: the PostHog distinct ID for this project's chat events (§6.11). */
+  ownerId: string;
   plan: Plan;
 }
 
@@ -29,13 +31,35 @@ export async function getChatProject(
 ): Promise<ChatProject | null> {
   const { data, error } = await service
     .from("projects")
-    .select("id, accounts(plan)")
+    .select("id, owner_id, accounts(plan)")
     .eq("public_key", publicKey)
     .maybeSingle();
 
   if (error) throw dbError("getChatProject", error);
   if (!data) return null;
-  return { id: data.id, plan: toPlan(data.accounts?.plan) };
+  return { id: data.id, ownerId: data.owner_id, plan: toPlan(data.accounts?.plan) };
+}
+
+/**
+ * True if this is the project's first conversation ever: the oldest one (by created_at, then
+ * id, so exactly one conversation wins even if two start at once). Uses the
+ * (project_id, created_at) index.
+ */
+export async function isFirstConversation(
+  projectId: string,
+  conversationId: string,
+  service: ServiceClient = createServiceClient(),
+): Promise<boolean> {
+  const { data, error } = await service
+    .from("conversations")
+    .select("id")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw dbError("isFirstConversation", error);
+  return data?.id === conversationId;
 }
 
 /** True if the conversation belongs to the project (§6.6 step 2). */

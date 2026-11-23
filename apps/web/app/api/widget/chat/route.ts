@@ -13,6 +13,7 @@ import {
   MATCH_COUNT,
   matchChunks,
   onChatTrace,
+  onConversationStarted,
   saveChatTurn,
 } from "../../../../lib/chat";
 import { protectWidgetChat } from "../../../../lib/security";
@@ -60,6 +61,7 @@ export async function POST(request: Request): Promise<Response> {
 
   // 3. Resolve the project (public key only) and check the conversation. Nothing counted yet.
   let projectId: string;
+  let ownerId: string;
   let maxMessages: number;
   try {
     const project = await getChatProject(key);
@@ -68,6 +70,7 @@ export async function POST(request: Request): Promise<Response> {
       return widgetError(404, "not_found", NOT_FOUND);
     }
     projectId = project.id;
+    ownerId = project.ownerId;
     maxMessages = PLAN_LIMITS[project.plan].messagesPerMonth;
   } catch (error) {
     logError("project lookup failed", error);
@@ -92,12 +95,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const started = performance.now();
     const answer = await answerFromChunks({ question: message, chunks });
-    onChatTrace({
-      projectId,
-      usage: answer.usage,
-      latencyMs: Math.round(performance.now() - started),
-      chunkCount: chunks.length,
-    });
+    const latencyMs = Math.round(performance.now() - started);
 
     const saved = await saveChatTurn({
       projectId,
@@ -108,6 +106,11 @@ export async function POST(request: Request): Promise<Response> {
     });
     // The conversation was deleted after the check above.
     if (!saved.ok) return widgetError(404, "not_found", NOT_FOUND);
+
+    // Analytics, after the save so the trace ID is the conversation ID. Both send after the
+    // response and never throw, so PostHog can't slow or fail the reply.
+    onChatTrace({ projectId, ownerId, conversationId: saved.conversationId, usage: answer.usage, latencyMs, chunkCount: chunks.length });
+    if (!conversationId) onConversationStarted({ projectId, ownerId, conversationId: saved.conversationId });
 
     const response: WidgetChatResponse = { conversationId: saved.conversationId, reply: answer.reply };
     return widgetJson(response, { headers: { "Cache-Control": "no-store" } });
