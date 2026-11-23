@@ -141,6 +141,20 @@ them when this is on.
 | Dashboard session replay | REPLAY_RESULT |
 | "Owner funnel" insight | Pass. Saved; the test owner went through landing → `first_chat` (100% each step); `upgraded` is 0 |
 
+#### Checks left open on #34 (PostHog setup) and #35 (chat analytics)
+
+| PR | Check | Result |
+|---|---|---|
+| #34 | Landing and dashboard pageviews | Pass. `$pageview` on `/` and the dashboard pages |
+| #34 | A signed-in visit is identified by the Clerk user ID | Pass. `$identify` with the Clerk ID; earlier anonymous events merged into the same person |
+| #34 | Sign-out resets | **Fail.** After sign-out, the `/sign-in` and `/` pageviews still carry the owner's Clerk ID (same person), so `reset()` didn't run. Reported to the lead |
+| #34 | Client error in Error tracking | Pass. A thrown `Error("P4C-T08 client error check")` on `/dashboard` arrived as `$exception` with an issue ID, under the owner |
+| #34 | Server error in Error tracking | Not run. Every route answers bad input with a 4xx, so there's no way to throw a server error on the preview without changing app code. Reported to the lead |
+| #34 | Dashboard session replay | See above |
+| #34 | `/embed` sends nothing | Pass (see above) |
+| #35 | Generation with model, tokens, latency, project ID, cost; no text | Pass. E.g. `gpt-5.4-mini`, 270 in / 17 out tokens, 1.22 s, $0.000279. No `$ai_input` / `$ai_output_choices` |
+| #35 | Two replies in one conversation share one trace | Pass. The first conversation's 2 replies have the same `$ai_trace_id` (its conversation ID) |
+
 | Knowledge ready | Widget chat | Conversations after Refresh | Thread |
 |---|---|---|---|
 | ![Pasted text Ready on the Knowledge page](docs/phase4/knowledge-ready.png) | ![Two answers in the widget on a plain host page](docs/phase4/widget-chat.png) | ![Four conversations, newest first](docs/phase4/conversations-list.png) | ![The first conversation's four messages](docs/phase4/conversation-thread.png) |
