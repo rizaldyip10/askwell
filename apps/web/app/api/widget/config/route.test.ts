@@ -26,13 +26,13 @@ beforeEach(() => {
 });
 
 describe("GET /api/widget/config", () => {
-  it("200 with only the plan-applied config, cacheable, with CORS", async () => {
+  it("200 with only the plan-applied config, never cached (a save shows on the next load), with CORS", async () => {
     lookup.mockResolvedValue({ ...DEFAULT_WIDGET_CONFIG });
     const res = await get(`?key=${KEY}`);
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ config: DEFAULT_WIDGET_CONFIG });
-    expect(res.headers.get("cache-control")).toBe("public, max-age=60");
+    expect(res.headers.get("cache-control")).toBe("no-store");
     expect(lookup).toHaveBeenCalledWith(KEY);
     expectCors(res);
   });
