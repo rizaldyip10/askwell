@@ -1,6 +1,7 @@
 import { PLAN_LIMITS } from "@askwell/shared";
 import { after } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { trackKnowledgeAdded } from "../../../../../lib/analytics/owner-events";
 import { processSource } from "../../../../../lib/knowledge";
 import {
   PROJECT_ID,
@@ -24,6 +25,7 @@ vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("../../../../../lib/supabase/owner", () => ({ createOwnerClient: vi.fn() }));
 vi.mock("../../../../../lib/supabase/service", () => ({ createServiceClient: vi.fn() }));
 vi.mock("../../../../../lib/knowledge", () => ({ processSource: vi.fn(), KNOWLEDGE_BUCKET: "knowledge" }));
+vi.mock("../../../../../lib/analytics/owner-events", () => ({ trackKnowledgeAdded: vi.fn() }));
 
 let owner: ReturnType<typeof fakeClient>;
 let service: ReturnType<typeof fakeClient>;
@@ -33,6 +35,7 @@ beforeEach(() => {
   authMock.mockReset().mockResolvedValue({ userId: USER });
   vi.mocked(after).mockReset();
   vi.mocked(processSource).mockReset().mockResolvedValue({ status: "ready", chunkCount: 1 });
+  vi.mocked(trackKnowledgeAdded).mockReset();
   owner = fakeClient();
   service = fakeClient();
   storage = withStorage(service);
@@ -130,6 +133,30 @@ describe("POST /api/projects/:id/knowledge (paste)", () => {
       type: "text",
       text: BODY.text,
     });
+  });
+
+  it("sends knowledge_added once the text is ready, with project_id and source_type only", async () => {
+    owned();
+    service.queue("rpc:reserve_knowledge_source", ok([{ ...sourceRow(), reclaimed_storage_keys: [] }]));
+    await paste();
+    expect(trackKnowledgeAdded).not.toHaveBeenCalled(); // not before processing
+    await runAfter();
+    expect(vi.mocked(trackKnowledgeAdded).mock.calls).toEqual([[USER, PROJECT_ID, "text"]]);
+    expect(JSON.stringify(vi.mocked(trackKnowledgeAdded).mock.calls)).not.toContain(BODY.text);
+    expect(JSON.stringify(vi.mocked(trackKnowledgeAdded).mock.calls)).not.toContain(BODY.title);
+  });
+
+  it("doesn't send knowledge_added when processing fails or the limit is hit", async () => {
+    owned();
+    service.queue("rpc:reserve_knowledge_source", ok([{ ...sourceRow(), reclaimed_storage_keys: [] }]));
+    vi.mocked(processSource).mockResolvedValue({ status: "failed", reason: "no_text" });
+    await paste();
+    await runAfter();
+
+    owned();
+    service.queue("rpc:reserve_knowledge_source", fail("P0001", "knowledge_limit"));
+    expect((await paste()).status).toBe(403);
+    expect(trackKnowledgeAdded).not.toHaveBeenCalled();
   });
 
   it("uses the Pro limit for a Pro owner", async () => {

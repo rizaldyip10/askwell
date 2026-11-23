@@ -1,6 +1,7 @@
 import { DEFAULT_WIDGET_CONFIG, PLAN_LIMITS, type Plan } from "@askwell/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ensureAccount } from "../../../lib/accounts/ensure-account";
+import { trackProjectCreated } from "../../../lib/analytics/owner-events";
 import { fakeClient, fail, ok, type QueryResult } from "../../../lib/projects/test-utils";
 import { createOwnerClient } from "../../../lib/supabase/owner";
 import { createServiceClient } from "../../../lib/supabase/service";
@@ -12,6 +13,7 @@ vi.mock("@clerk/nextjs/server", () => ({ auth: () => authMock() }));
 vi.mock("../../../lib/supabase/owner", () => ({ createOwnerClient: vi.fn() }));
 vi.mock("../../../lib/supabase/service", () => ({ createServiceClient: vi.fn() }));
 vi.mock("../../../lib/accounts/ensure-account", () => ({ ensureAccount: vi.fn() }));
+vi.mock("../../../lib/analytics/owner-events", () => ({ trackProjectCreated: vi.fn() }));
 
 const USER = "user_owner";
 const row = (n: number, key = `pk_${String(n).padStart(32, "0")}`) => ({
@@ -30,6 +32,7 @@ let service: ReturnType<typeof fakeClient>;
 beforeEach(() => {
   authMock.mockReset().mockResolvedValue({ userId: USER });
   vi.mocked(ensureAccount).mockReset().mockResolvedValue(undefined);
+  vi.mocked(trackProjectCreated).mockReset();
   owner = fakeClient();
   service = fakeClient();
   vi.mocked(createOwnerClient).mockReturnValue(owner.client as unknown as ReturnType<typeof createOwnerClient>);
@@ -127,6 +130,28 @@ describe("POST /api/projects", () => {
       p_header_text: DEFAULT_WIDGET_CONFIG.headerText,
       p_show_badge: DEFAULT_WIDGET_CONFIG.showBadge,
     });
+  });
+
+  it("sends project_created once on success, with the owner, project_id and plan", async () => {
+    owner.queue("accounts", ok({ plan: "pro" }));
+    emulateCreateProject();
+    const res = await post({ name: "My site" });
+    const { project } = await res.json();
+    expect(vi.mocked(trackProjectCreated).mock.calls).toEqual([[USER, project.id, "pro"]]);
+  });
+
+  it("doesn't send project_created on a plan limit, a validation error or a failure", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    emulateCreateProject();
+    owner.queue("accounts", ok({ plan: "free" }), ok({ plan: "free" }));
+    await post({ name: "One" });
+    vi.mocked(trackProjectCreated).mockClear();
+    expect((await post({ name: "Two" })).status).toBe(403);
+    expect((await post({ name: "" })).status).toBe(400);
+    vi.mocked(ensureAccount).mockRejectedValueOnce(new Error("db down"));
+    expect((await post({ name: "Three" })).status).toBe(500);
+    expect(trackProjectCreated).not.toHaveBeenCalled();
+    log.mockRestore();
   });
 
   it("Free: the second create is 403 plan_limit with an upgrade message", async () => {

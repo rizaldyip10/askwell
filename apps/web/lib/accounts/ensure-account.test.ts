@@ -1,9 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchMock, TEST_SUPABASE_URL, setupSupabaseTestEnv } from "../supabase/test-utils";
 import { EnsureAccountError, ensureAccount } from "./ensure-account";
 
 // `server-only` throws outside a React Server Components build; neutralise it for tests.
 vi.mock("server-only", () => ({}));
+const trackSignedUp = vi.fn();
+vi.mock("../analytics/owner-events", () => ({ trackSignedUp: (id: string) => trackSignedUp(id) }));
+beforeEach(() => trackSignedUp.mockReset());
 
 const SECRET = "sb_secret_test";
 setupSupabaseTestEnv({ SUPABASE_SECRET_KEY: SECRET });
@@ -64,8 +67,25 @@ describe("ensureAccount", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("sends signed_up once, only when the insert created the row", async () => {
+    // A new row: the insert returns it (Prefer: return=representation).
+    fetchMock.mockResolvedValueOnce(Response.json([{ clerk_user_id: "user_new" }], { status: 201 }));
+    await ensureAccount("user_new");
+    expect(sentRequest().headers.get("prefer")).toContain("return=representation");
+    expect(trackSignedUp.mock.calls).toEqual([["user_new"]]);
+  });
+
+  it("doesn't send signed_up for an existing account (no row returned) or on an error", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json([], { status: 201 }));
+    await ensureAccount("user_pro");
+    fetchMock.mockResolvedValueOnce(Response.json({ code: "42501", message: "denied", details: null, hint: null }, { status: 403 }));
+    await expect(ensureAccount("user_x")).rejects.toBeInstanceOf(EnsureAccountError);
+    expect(trackSignedUp).not.toHaveBeenCalled();
+  });
+
   it("uses an injected client when given one", async () => {
-    const upsert = vi.fn(async () => ({ error: null }));
+    const select = vi.fn(async () => ({ data: [], error: null }));
+    const upsert = vi.fn(() => ({ select }));
     const client = { from: vi.fn(() => ({ upsert })) };
 
     await ensureAccount("user_inj", client as never);
