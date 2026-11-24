@@ -5,7 +5,7 @@
 // (The proxy answers an owner-route preflight even earlier, with a 401, because it carries no session.)
 
 import { readdir, readFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { routeAccess } from "../auth/routes";
@@ -42,6 +42,9 @@ const ROUTES: Record<string, () => Promise<Record<string, unknown>>> = {
 };
 const WIDGET_ROUTES = ["/api/widget/config", "/api/widget/chat"];
 
+/** `relative()` with `/` separators on every OS (Windows gives `\`), to compare with URL paths. */
+const relativePosix = (from: string, to: string) => relative(from, to).split(sep).join("/");
+
 async function walk(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   const nested = await Promise.all(
@@ -73,8 +76,11 @@ beforeEach(() => {
 
 describe("route inventory", () => {
   it("lists every API route: owner/system here, plus the two widget routes", async () => {
-    const files = (await walk(join(APP_DIR, "api"))).filter((f) => /\/route\.ts$/.test(f));
-    const paths = files.map((f) => `/${relative(APP_DIR, f).replace(/\/route\.ts$/, "")}`).sort();
+    const files = (await walk(join(APP_DIR, "api"))).map((f) => relativePosix(APP_DIR, f));
+    const paths = files
+      .filter((f) => /\/route\.ts$/.test(f))
+      .map((f) => `/${f.replace(/\/route\.ts$/, "")}`)
+      .sort();
     expect(paths).toEqual([...Object.keys(ROUTES), ...WIDGET_ROUTES].sort());
   });
 });
@@ -146,7 +152,7 @@ describe("only the widget code sets Access-Control-* headers", () => {
       .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f));
     const offenders: string[] = [];
     for (const f of files) {
-      if (/Access-Control-Allow-Origin/i.test(await readFile(f, "utf8"))) offenders.push(relative(WEB_DIR, f));
+      if (/Access-Control-Allow-Origin/i.test(await readFile(f, "utf8"))) offenders.push(relativePosix(WEB_DIR, f));
     }
     // lib/widget/http.ts: the widget API routes. next.config.ts (not scanned) adds it for /widget.js only.
     expect(offenders).toEqual(["lib/widget/http.ts"]);
