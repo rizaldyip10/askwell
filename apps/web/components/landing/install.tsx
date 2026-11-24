@@ -2,16 +2,22 @@ import { CodeBlock } from "../ui/code-block";
 import { Container } from "../ui/container";
 import { SectionHeading } from "../ui/section-heading";
 
-// Example only. The real snippet, with the project's public key, lives in the dashboard's Install page.
-export const INSTALL_SNIPPET = `<script
-  src="https://example.com/widget.js"
-  data-key="pk_your_public_key"
-  async
+/** Placeholder key. The real snippet, with the project's public key, lives in the dashboard's Install page. */
+export const EXAMPLE_PUBLIC_KEY = "pk_your_public_key";
+
+/** The example snippet, loading from `appUrl`. Same attributes as the dashboard's (`defer`), split over lines to fit. */
+export function installSnippet(appUrl: string): string {
+  return `<script
+  src="${appUrl}/widget.js"
+  data-key="${EXAMPLE_PUBLIC_KEY}"
+  defer
 ></script>`;
+}
 
 const STEPS = ["Create a project and copy its snippet.", "Paste it before </body> on your site.", "Reload. The chat button appears."];
 
-export function Install() {
+/** `appUrl` is the app's origin from `appUrl()` (server only), so each environment shows its own URL. */
+export function Install({ appUrl }: { appUrl: string }) {
   return (
     <section id="install" aria-labelledby="install-title" className="scroll-mt-20 py-20 sm:py-28">
       <Container className="grid items-center gap-12 lg:grid-cols-2">
@@ -33,7 +39,7 @@ export function Install() {
           </ol>
         </div>
         <div data-reveal className="min-w-0">
-          <CodeBlock label="index.html" code={INSTALL_SNIPPET} />
+          <CodeBlock label="index.html" code={installSnippet(appUrl)} />
         </div>
       </Container>
     </section>

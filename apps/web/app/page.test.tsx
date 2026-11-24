@@ -1,10 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { APP_NAME, PLANS, PLAN_LIMITS } from "@askwell/shared";
 import { PRICING_ROWS } from "../components/landing/pricing-rows";
 import Home from "./page";
 
+vi.mock("server-only", () => ({}));
+
+const APP_URL = "https://askwell.test";
+vi.stubEnv("VERCEL_ENV", "");
+vi.stubEnv("NEXT_PUBLIC_APP_URL", APP_URL);
 const html = renderToStaticMarkup(<Home />);
+vi.unstubAllEnvs();
 
 /** The markup between `data-plan="<plan>"` and the end of that plan's card. */
 function planCard(plan: string): string {
@@ -50,6 +56,18 @@ describe("home page", () => {
     expect(planCard("free")).toContain(">100</dd>");
     expect(planCard("pro")).toContain(">2,000</dd>");
     expect(planCard("pro")).toContain(">25</dd>");
+  });
+
+  it("links Sign in to /sign-in", () => {
+    const links = [...html.matchAll(/<a [^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/g)];
+    const signIn = links.filter(([, , text]) => text === "Sign in");
+    expect(signIn.length).toBeGreaterThan(0);
+    for (const [, href] of signIn) expect(href).toBe("/sign-in");
+  });
+
+  it("builds the install snippet from appUrl()", () => {
+    expect(html).toContain(`src=&quot;${APP_URL}/widget.js&quot;`);
+    expect(html).not.toContain("example.com");
   });
 
   it("renders chat bubbles as text, not HTML", () => {

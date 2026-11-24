@@ -3,7 +3,7 @@ import { APP_NAME } from "@askwell/shared";
 import { ButtonLink } from "../ui/button";
 import { Container } from "../ui/container";
 import { Logo } from "./logo";
-import { SIGN_UP_HREF, START_FREE_LABEL } from "./links";
+import { SIGN_IN_HREF, SIGN_IN_LABEL, SIGN_UP_HREF, START_FREE_LABEL } from "./links";
 
 const NAV = [
   { href: "#how-it-works", label: "How it works" },
@@ -31,9 +31,14 @@ export function SiteHeader() {
             </a>
           ))}
         </nav>
-        <ButtonLink href={SIGN_UP_HREF} size="md">
-          {START_FREE_LABEL}
-        </ButtonLink>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <ButtonLink href={SIGN_IN_HREF} variant="ghost" size="md" className="px-3 sm:px-4">
+            {SIGN_IN_LABEL}
+          </ButtonLink>
+          <ButtonLink href={SIGN_UP_HREF} size="md">
+            {START_FREE_LABEL}
+          </ButtonLink>
+        </div>
       </Container>
     </header>
   );

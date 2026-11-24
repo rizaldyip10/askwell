@@ -6,6 +6,7 @@ import { Pricing } from "../components/landing/pricing";
 import { RevealObserver } from "../components/landing/reveal-observer";
 import { SiteFooter } from "../components/landing/site-footer";
 import { SiteHeader } from "../components/landing/site-header";
+import { appUrl } from "../lib/app-url";
 
 export default function Home() {
   return (
@@ -16,7 +17,7 @@ export default function Home() {
         <HowItWorks />
         <Demo />
         <Pricing />
-        <Install />
+        <Install appUrl={appUrl()} />
       </main>
       <SiteFooter />
       <RevealObserver />
