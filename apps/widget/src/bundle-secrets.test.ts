@@ -8,7 +8,6 @@ import { build } from "esbuild";
 import { beforeAll, describe, expect, it } from "vitest";
 import pkg from "../package.json";
 
-const ENTRY = new URL("./index.ts", import.meta.url).pathname;
 
 const BUILD_SCRIPT = "esbuild src/index.ts --bundle --minify --format=iife --target=es2018 --outfile=dist/widget.js";
 
@@ -36,9 +35,19 @@ const SECRET_PATTERNS: [string, RegExp][] = [
 
 let bundle: string;
 
+/**
+ * Node's own fileURLToPath (spaces, Windows drive letters). This package has no Node types,
+ * so the import is typed by hand; the test runs in Node (see the environment comment above).
+ */
+async function fileURLToPath(url: URL): Promise<string> {
+  const specifier = "node:url";
+  const mod = (await import(/* @vite-ignore */ specifier)) as { fileURLToPath: (u: URL) => string };
+  return mod.fileURLToPath(url);
+}
+
 beforeAll(async () => {
   const result = await build({
-    entryPoints: [ENTRY],
+    entryPoints: [await fileURLToPath(new URL("./index.ts", import.meta.url))],
     bundle: true,
     minify: true,
     format: "iife",

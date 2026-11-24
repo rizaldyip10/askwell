@@ -3,6 +3,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 /** apps/web */
 export const WEB_DIR = fileURLToPath(new URL("../../..", import.meta.url));
@@ -25,11 +26,42 @@ export type SourceFile = {
   code: string;
 };
 
-/** Blanks `//` and `/* *\/` comments (keeps line breaks, so line numbers still match). Strings with `//` (URLs) are kept. */
-export function stripComments(text: string): string {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, " "))
-    .replace(/(^|[^:"'`\\])\/\/.*$/gm, (_match, before: string) => before);
+/**
+ * Blanks every comment (keeps line breaks, so line numbers still match), using the TypeScript
+ * parser: `//` or `/*` inside a string, template, regex or JSX text is code, not a comment.
+ * `fileName` picks the parser (`.tsx` parses JSX).
+ */
+export function stripComments(text: string, fileName = "file.tsx"): string {
+  const kind = fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, kind);
+  const ranges = new Map<number, number>();
+  const add = (list: readonly ts.CommentRange[] | undefined) => {
+    for (const r of list ?? []) ranges.set(r.pos, r.end);
+  };
+
+  // Comments live in the trivia before each token; the end-of-file token (a child of the
+  // source file) holds the last ones. JSX text has no trivia: everything in it is text.
+  const visit = (node: ts.Node) => {
+    const children = node.getChildren(source);
+    if (children.length === 0) {
+      if (node.kind !== ts.SyntaxKind.JsxText) {
+        add(ts.getLeadingCommentRanges(text, node.pos));
+        add(ts.getTrailingCommentRanges(text, node.pos));
+      }
+      return;
+    }
+    children.forEach(visit);
+  };
+  visit(source);
+
+  let out = "";
+  let at = 0;
+  for (const [pos, end] of [...ranges].sort((a, b) => a[0] - b[0])) {
+    if (pos < at) continue;
+    out += text.slice(at, pos) + text.slice(pos, end).replace(/[^\n]/g, " ");
+    at = end;
+  }
+  return out + text.slice(at);
 }
 
 /**
@@ -52,7 +84,7 @@ export async function webSources(): Promise<SourceFile[]> {
       .filter(({ path }) => !path.startsWith("lib/security/audit/"))
       .map(async ({ abs, path }) => {
         const text = await readFile(abs, "utf8");
-        return { path, text, code: stripComments(text) };
+        return { path, text, code: stripComments(text, path) };
       }),
   );
   return sources.sort((a, b) => a.path.localeCompare(b.path));

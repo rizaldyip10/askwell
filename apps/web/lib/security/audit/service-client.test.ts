@@ -74,10 +74,11 @@ describe("service-client inventory", () => {
     "%s checks ownership through the owner client before its first service client",
     (path, site) => {
       const code = sources.find((f) => f.path === path)?.code ?? "";
-      const guard = code.search(site.guard!);
+      const guard = site.guard!.exec(code);
       const firstService = code.search(/createServiceClient\(\)/);
-      expect(guard, "ownership check not found").toBeGreaterThanOrEqual(0);
-      expect(guard).toBeLessThan(firstService);
+      expect(guard, "ownership check not found").not.toBeNull();
+      // The whole guard, up to and including its early return, ends before the service client.
+      expect(guard!.index + guard![0].length).toBeLessThanOrEqual(firstService);
     },
   );
 
@@ -97,6 +98,17 @@ describe("service-client inventory", () => {
  * clients are named `service`, `db`, `client`, `supabase` or created inline; owner clients
  * are named `owner`, so readOwnerPlan's owner read in create-project.ts isn't one of them.
  */
+/**
+ * True if a query chain filters on owner_id: `.eq("owner_id", …)` and the other column
+ * filters, a PostgREST filter string (`.or("owner_id.eq.…")`), or `.match({ owner_id: … })`.
+ */
+function hasOwnerFilter(chain: string): boolean {
+  return (
+    /\.(eq|neq|match|filter|in|is|or|contains|like|ilike)\(\s*["'`][^"'`]*owner_id/.test(chain) ||
+    /\.match\(\s*\{[^}]*\bowner_id\b/.test(chain)
+  );
+}
+
 const serviceChains = (file: SourceFile) =>
   [...file.code.matchAll(/(?:\b(?:service|db|client|supabase)|createServiceClient\(\))\s*\.(?:from|rpc)\([^;]*;/g)].map((m) => m[0]);
 
@@ -105,12 +117,26 @@ describe("no service-client read with a manual owner filter", () => {
     expect(callers.flatMap(serviceChains).length).toBeGreaterThan(15);
   });
 
+  it.each([
+    'service.from("projects").select("id").eq("owner_id", userId);',
+    'service.from("projects").select("id").match({ owner_id: userId });',
+    'db.from("projects").select("id").match({ id, "owner_id": userId });',
+    'service.from("projects").select("id").or(`owner_id.eq.${userId}`);',
+    'service.from("projects").select("id").filter("owner_id", "eq", userId);',
+  ])("the owner-filter check catches %s", (chain) => {
+    expect(hasOwnerFilter(chain)).toBe(true);
+  });
+
+  it.each([
+    'service.from("projects").select("id, owner_id, accounts(plan)").eq("public_key", publicKey);',
+    'service.from("projects").select("id").match({ public_key: key });',
+    'service.rpc("create_project", { p_owner_id: userId });',
+  ])("the owner-filter check allows %s", (chain) => {
+    expect(hasOwnerFilter(chain)).toBe(false);
+  });
+
   it("no service-client chain filters on owner_id", () => {
-    const offenders = callers.flatMap((f) =>
-      serviceChains(f)
-        .filter((chain) => /\.(eq|match|filter|in|or)\(\s*["'`][^"'`]*owner_id/.test(chain))
-        .map(() => f.path),
-    );
+    const offenders = callers.flatMap((f) => serviceChains(f).filter(hasOwnerFilter).map(() => f.path));
     expect(offenders).toEqual([]);
   });
 

@@ -106,10 +106,12 @@ describe("tables and views in public", () => {
     expect(rows).toEqual([]);
   });
 
-  it("every table authenticated can read has an RLS policy for it", async () => {
+  it("every table authenticated can read has an RLS policy that allows SELECT for it", async () => {
+    // cmd SELECT or ALL: an UPDATE- or DELETE-only policy doesn't let anyone read.
     const { rows } = await db.pg.query<{ tablename: string }>(
       `select distinct tablename from pg_policies
        where schemaname = 'public' and ('authenticated' = any(roles) or 'public' = any(roles))
+         and cmd in ('SELECT', 'ALL')
        order by tablename`,
     );
     expect(rows.map((r) => r.tablename)).toEqual(tables);

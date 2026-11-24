@@ -46,11 +46,11 @@ describe("apps/widget (the loader on customer sites)", () => {
     const files = (await readdir(dir)).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
     const sinks: string[] = [];
     for (const file of files) {
-      const code = stripComments(await readFile(join(dir, file), "utf8"));
+      const code = stripComments(await readFile(join(dir, file), "utf8"), file);
       for (const line of code.split("\n")) if (HTML_SINKS.test(line)) sinks.push(`${file}: ${line.trim()}`);
     }
     expect(sinks).toEqual(["widget.ts: button.innerHTML = ICON;"]);
-    const widget = stripComments(await readFile(join(dir, "widget.ts"), "utf8"));
+    const widget = stripComments(await readFile(join(dir, "widget.ts"), "utf8"), "widget.ts");
     // ICON is a string literal, assigned once.
     expect(widget).toMatch(/const ICON =\s*'<svg [^']*<\/svg>';/);
     expect(widget.match(/\bICON\s*=/g)).toHaveLength(1);
