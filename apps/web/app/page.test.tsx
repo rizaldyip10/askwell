@@ -9,6 +9,17 @@ const APP_URL = "https://askwell.test";
 const calls = vi.hoisted(() => [] as string[]);
 vi.mock("next/server", () => ({ connection: vi.fn(async () => void calls.push("connection")) }));
 vi.mock("../lib/app-url", () => ({ appUrl: vi.fn(() => (calls.push("appUrl"), "https://askwell.test")) }));
+// The key reader, per request; the widget as a marker carrying its props (its effect is tested on its own).
+const widgetKey = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("../lib/landing/widget-key", () => ({
+  landingWidgetKey: vi.fn(() => (calls.push("landingWidgetKey"), widgetKey.value)),
+}));
+vi.mock("../components/landing/landing-widget", () => ({
+  LandingWidget: ({ appUrl, widgetKey }: { appUrl: string; widgetKey: string | null }) =>
+    widgetKey ? <i data-landing-widget={widgetKey} data-app-url={appUrl} /> : null,
+}));
+
+const KEY = "pk_a1b2c3d4e5f6a7b8c9d0e1f2";
 
 const html = renderToStaticMarkup(await Home());
 
@@ -65,8 +76,32 @@ describe("home page", () => {
     for (const [, href] of signIn) expect(href).toBe("/sign-in");
   });
 
-  it("renders per request: connection() runs before appUrl() is read", () => {
-    expect(calls).toEqual(["connection", "appUrl"]);
+  it("renders per request: connection() runs before appUrl() and the widget key are read", () => {
+    expect(calls).toEqual(["connection", "appUrl", "landingWidgetKey"]);
+  });
+
+  it("without LANDING_WIDGET_KEY: no widget", () => {
+    expect(html).not.toContain("data-landing-widget");
+  });
+
+  it("reads the widget key on each request and passes it with appUrl()", async () => {
+    widgetKey.value = KEY;
+    const withKey = renderToStaticMarkup(await Home());
+    expect(withKey).toContain(`data-landing-widget="${KEY}" data-app-url="${APP_URL}"`);
+
+    widgetKey.value = null;
+    expect(renderToStaticMarkup(await Home())).not.toContain("data-landing-widget");
+  });
+
+  it("labels the demo chat as a preview", () => {
+    expect(html).toContain(">Preview</span>");
+  });
+
+  it("points at the live button only when the widget runs", async () => {
+    expect(html).not.toContain("Try it: ask the bot in the corner.");
+    widgetKey.value = KEY;
+    expect(renderToStaticMarkup(await Home())).toContain("Try it: ask the bot in the corner.");
+    widgetKey.value = null;
   });
 
   it("builds the install snippet from appUrl()", () => {

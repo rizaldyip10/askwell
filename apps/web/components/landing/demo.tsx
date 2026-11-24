@@ -7,7 +7,7 @@ import { Logo } from "./logo";
 
 type DemoMessage = { role: "visitor" | "bot"; text: string };
 
-// Static mock. The live widget replaces this in Phase 6.
+// An illustration of a chat. The live widget is the button in the page corner (LandingWidget).
 const MESSAGES: readonly DemoMessage[] = [
   { role: "visitor", text: "Hi! Can I use this on a Shopify store?" },
   {
@@ -21,7 +21,8 @@ const MESSAGES: readonly DemoMessage[] = [
   },
 ];
 
-export function Demo() {
+/** `liveWidget`: the real widget runs on this page (LANDING_WIDGET_KEY is set), so invite visitors to try it. */
+export function Demo({ liveWidget }: { liveWidget: boolean }) {
   return (
     <section id="demo" aria-labelledby="demo-title" className="scroll-mt-20 py-20 sm:py-28">
       <Container className="grid items-center gap-12 lg:grid-cols-2">
@@ -29,10 +30,22 @@ export function Demo() {
           <SectionHeading
             id="demo-title"
             align="left"
-            eyebrow="Live demo"
+            eyebrow={liveWidget ? "Live demo" : "Demo"}
             title="A support chat that knows your product"
             description="Visitors open the chat, ask in their own words and get a clear answer. You read every conversation later."
           />
+          {liveWidget ? (
+            <>
+              <p className="mt-6 flex items-center gap-2 text-sm font-medium text-fg">
+                <span aria-hidden="true" className="relative flex size-2">
+                  <span className="absolute inline-flex size-full rounded-pill bg-fg opacity-60 motion-safe:animate-ping" />
+                  <span className="relative inline-flex size-2 rounded-pill bg-fg" />
+                </span>
+                Try it: ask the bot in the corner.
+              </p>
+              <p className="mt-2 text-sm text-fg-subtle">It runs {APP_NAME} on this page and answers from our own docs.</p>
+            </>
+          ) : null}
         </div>
 
         <div data-reveal className="flex flex-col items-end gap-4">
@@ -40,13 +53,16 @@ export function Demo() {
             strong
             role="region"
             aria-label={`${APP_NAME} chat preview`}
-            className="w-full max-w-md overflow-hidden shadow-glow"
+            className="relative w-full max-w-md overflow-hidden shadow-glow"
           >
+            <span className="absolute top-3 right-3 rounded-pill border border-glass-line bg-glass px-2 py-0.5 text-[11px] font-medium text-fg-subtle">
+              Preview
+            </span>
             <div className="flex items-center gap-3 border-b border-glass-line px-4 py-3">
               <span className="flex size-8 items-center justify-center rounded-pill bg-primary">
                 <Logo className="size-4 [&_.fill-fg]:fill-primary-fg [&_.fill-canvas]:fill-primary" />
               </span>
-              <div className="min-w-0">
+              <div className="min-w-0 pr-16">
                 <p className="text-sm font-semibold">{APP_NAME}</p>
                 <p className="text-xs text-fg-subtle">Usually replies instantly</p>
               </div>
