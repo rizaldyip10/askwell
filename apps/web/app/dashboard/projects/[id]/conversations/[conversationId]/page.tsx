@@ -10,6 +10,7 @@ import { PageHeader } from "../../../../../../components/dashboard/page-header";
 import { GlassPanel } from "../../../../../../components/ui/glass-panel";
 import { getConversationThread } from "../../../../../../lib/conversations";
 import { loadOwnedProject } from "../../load-project";
+import { TAP_MIN } from "../../../../../../components/ui/tap-target";
 
 type Props = { params: Promise<{ id: string; conversationId: string }> };
 
@@ -33,7 +34,7 @@ export default async function ConversationPage({ params }: Props) {
     <>
       <Link
         href={listHref}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-fg-muted underline-offset-4 hover:text-fg hover:underline"
+        className={`mb-4 inline-flex items-center gap-1 ${TAP_MIN} text-sm text-fg-muted underline-offset-4 hover:text-fg hover:underline`}
       >
         <span aria-hidden="true">←</span> All conversations
       </Link>

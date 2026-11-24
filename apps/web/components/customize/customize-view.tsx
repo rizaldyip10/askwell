@@ -19,6 +19,7 @@ import { GlassPanel } from "../ui/glass-panel";
 import { changedFields, NO_CHANGES, previewConfig, submitConfig, type ConfigField, type FieldErrors, type SaveFn } from "./form-state";
 import { saveWidgetConfig } from "./save";
 import { WidgetPreview } from "./widget-preview";
+import { TAP_HEIGHT, TAP_MIN } from "../ui/tap-target";
 
 const POSITION_LABELS: Record<WidgetPosition, string> = {
   "top-left": "Top left",
@@ -135,7 +136,7 @@ export function CustomizeView({ projectId, canCustomize, initial, save = saveWid
                     aria-label="Pick a button color"
                     value={(colorValid ? draft.buttonColor : saved.buttonColor).toLowerCase()}
                     onChange={(event) => update("buttonColor", event.target.value)}
-                    className="h-10 w-14 shrink-0 cursor-pointer rounded-control border border-glass-line bg-glass-strong p-1 disabled:cursor-not-allowed"
+                    className={`h-10 w-14 ${TAP_HEIGHT} shrink-0 cursor-pointer rounded-control border border-glass-line bg-glass-strong p-1 disabled:cursor-not-allowed`}
                   />
                   <TextInput
                     id={field("color")}
@@ -215,7 +216,7 @@ export function CustomizeView({ projectId, canCustomize, initial, save = saveWid
                 />
               </Field>
 
-              <label className="flex cursor-pointer items-start gap-3 text-sm has-disabled:cursor-not-allowed">
+              <label className={cn("flex cursor-pointer items-start gap-3 text-sm has-disabled:cursor-not-allowed", TAP_MIN)}>
                 <input
                   type="checkbox"
                   checked={draft.showBadge}
@@ -314,6 +315,7 @@ function Choice({ name, checked, onChange, label }: { name: string; checked: boo
     <label
       className={cn(
         "flex h-10 cursor-pointer items-center justify-center rounded-control border px-3 text-sm transition-colors",
+        TAP_HEIGHT,
         "has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-fg has-disabled:cursor-not-allowed",
         checked ? "border-fg bg-primary text-primary-fg" : "border-glass-line bg-glass-strong text-fg hover:bg-glass",
       )}

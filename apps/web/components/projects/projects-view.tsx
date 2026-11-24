@@ -27,7 +27,7 @@ export function ProjectsView({ projects, usage }: ProjectsViewProps) {
       <GlassPanel className="p-5">
         <CreateProjectForm />
       </GlassPanel>
-      <ul aria-label="Your projects" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <ul aria-label="Your projects" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {projects.map((project) => (
           <ProjectCard key={project.id} project={project} usage={usage?.[project.id] ?? null} />
         ))}

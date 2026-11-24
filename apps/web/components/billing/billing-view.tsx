@@ -9,6 +9,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { GlassPanel } from "../ui/glass-panel";
 import { CHECKOUT_PARAM, PLAN_LABEL, PROCESSING_POLL_MS, planFeatures, upgradeStatus } from "./plan-details";
+import { TAP_HEIGHT, TAP_MIN } from "../ui/tap-target";
 
 type Props = {
   /** `accounts.plan`, read on the server. */
@@ -31,6 +32,8 @@ const clerkAppearance = {
     borderRadius: "var(--radius-control)",
     fontFamily: "inherit",
   },
+  // 44 px tap targets on phones and touch screens (§13); desktop keeps Clerk's sizes.
+  elements: { pricingTableCardFooterButton: TAP_HEIGHT, switchRoot: TAP_MIN },
 };
 
 export function BillingView({ plan, overLimit, returnedFromCheckout }: Props) {

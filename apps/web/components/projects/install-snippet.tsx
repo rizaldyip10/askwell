@@ -35,7 +35,7 @@ export function InstallSnippet({ snippet }: { snippet: string }) {
   return (
     <div className="flex flex-col gap-3">
       <div ref={codeRef} className="min-w-0">
-        <CodeBlock code={snippet} label="HTML" />
+        <CodeBlock code={snippet} label="HTML" wrap />
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <CopyButton

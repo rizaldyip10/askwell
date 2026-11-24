@@ -5,10 +5,12 @@ type CodeBlockProps = {
   /** Shown in the panel's title bar, e.g. "index.html". */
   label?: string;
   className?: string;
+  /** Wrap long lines instead of scrolling sideways, so all of the code is visible on a phone. */
+  wrap?: boolean;
 };
 
 /** Read-only code panel. The code is rendered as text, never HTML. */
-export function CodeBlock({ code, label, className }: CodeBlockProps) {
+export function CodeBlock({ code, label, className, wrap = false }: CodeBlockProps) {
   return (
     <figure
       className={cn(
@@ -26,7 +28,12 @@ export function CodeBlock({ code, label, className }: CodeBlockProps) {
           <span className="font-mono">{label}</span>
         </figcaption>
       ) : null}
-      <pre className="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-fg sm:text-sm">
+      <pre
+        className={cn(
+          "p-4 font-mono text-[13px] leading-relaxed text-fg sm:text-sm",
+          wrap ? "whitespace-pre-wrap wrap-anywhere" : "overflow-x-auto",
+        )}
+      >
         <code>{code}</code>
       </pre>
     </figure>

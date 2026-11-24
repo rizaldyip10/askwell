@@ -1,5 +1,6 @@
 import { APP_NAME } from "@askwell/shared";
 import type { ReactNode } from "react";
+import { TAP_SIZE } from "../ui/tap-target";
 
 // Presentational parts of the chat panel, shared by /embed (ChatPanel) and the Customize
 // page's live preview. No state, no messaging: callers wire the behavior. Text is always
@@ -25,7 +26,7 @@ export function PanelHeader({ headerText, as: Heading = "h1", onClose }: PanelHe
         type="button"
         aria-label="Close chat"
         onClick={onClose}
-        className="grid size-8 shrink-0 place-items-center rounded-pill text-fg-muted transition-colors hover:bg-glass hover:text-fg focus-visible:outline-2 focus-visible:outline-fg"
+        className={`grid size-8 ${TAP_SIZE} shrink-0 place-items-center rounded-pill text-fg-muted transition-colors hover:bg-glass hover:text-fg focus-visible:outline-2 focus-visible:outline-fg`}
       >
         <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
           <path d="M4 4l8 8M12 4l-8 8" />

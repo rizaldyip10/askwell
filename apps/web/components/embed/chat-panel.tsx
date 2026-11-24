@@ -9,6 +9,7 @@ import { getVisitorId } from "../../lib/embed/visitor-id";
 import { MessageBubble, TypingIndicator } from "./message-bubble";
 import { PANEL_SURFACE, PanelFooter, PanelHeader, PoweredBy, SendIcon } from "./panel-parts";
 import { usePanelHidden } from "./use-panel-hidden";
+import { TAP_HEIGHT, TAP_SIZE } from "../ui/tap-target";
 
 type ChatPanelProps = {
   config: WidgetConfig;
@@ -111,13 +112,13 @@ export function ChatPanel({ config, publicKey, origin }: ChatPanelProps) {
             disabled={state.waiting}
             autoComplete="off"
             placeholder="Type your message…"
-            className="h-10 min-w-0 flex-1 rounded-pill border border-glass-line bg-white px-4 text-sm placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-fg disabled:opacity-60"
+            className={`h-10 ${TAP_HEIGHT} min-w-0 flex-1 rounded-pill border border-glass-line bg-white px-4 text-sm placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-fg disabled:opacity-60`}
           />
           <button
             type="submit"
             aria-label="Send"
             disabled={state.waiting || draft.trim() === ""}
-            className="grid size-10 shrink-0 place-items-center rounded-pill bg-primary text-primary-fg transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:opacity-40"
+            className={`grid size-10 ${TAP_SIZE} shrink-0 place-items-center rounded-pill bg-primary text-primary-fg transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg disabled:opacity-40`}
           >
             <SendIcon />
           </button>
