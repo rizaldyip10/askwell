@@ -103,6 +103,7 @@ export type Database = {
       knowledge_sources: {
         Row: {
           created_at: string
+          failure_reason: string | null
           id: string
           project_id: string
           status: string
@@ -112,6 +113,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          failure_reason?: string | null
           id?: string
           project_id: string
           status: string
@@ -121,6 +123,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          failure_reason?: string | null
           id?: string
           project_id?: string
           status?: string

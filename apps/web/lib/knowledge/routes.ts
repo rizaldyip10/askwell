@@ -5,6 +5,7 @@ import {
   KNOWLEDGE_SOURCE_STATUSES,
   KNOWLEDGE_SOURCE_TYPES,
   PLAN_LIMITS,
+  toKnowledgeFailureReason,
   type KnowledgeFileType,
   type KnowledgeSource,
   type KnowledgeSourceStatus,
@@ -33,6 +34,8 @@ export type KnowledgeSourceRow = {
   type: string;
   storage_key: string | null;
   status: string;
+  /** Absent from reserve_knowledge_source's result: a new source never has one. */
+  failure_reason?: string | null;
   created_at: string;
 };
 
@@ -44,6 +47,7 @@ export function toKnowledgeSource(row: KnowledgeSourceRow): KnowledgeSource {
     title: row.title,
     type: oneOf(KNOWLEDGE_SOURCE_TYPES, row.type, "type"),
     status: oneOf(KNOWLEDGE_SOURCE_STATUSES, row.status, "status"),
+    failureReason: toKnowledgeFailureReason(row.failure_reason),
     createdAt: row.created_at,
   };
 }

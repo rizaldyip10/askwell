@@ -7,7 +7,14 @@ vi.mock("server-only", () => ({}));
 // Fakes: an in-memory Supabase (only the calls processSource makes) and embeddings.
 // ---------------------------------------------------------------------------
 
-type Source = { id: string; project_id: string; type: string; storage_key: string | null; status: string };
+type Source = {
+  id: string;
+  project_id: string;
+  type: string;
+  storage_key: string | null;
+  status: string;
+  failure_reason?: string | null;
+};
 type Chunk = { id?: string; project_id: string; source_id: string; content: string; embedding: string };
 type DbError = { name: string; code: string; message: string };
 
@@ -82,6 +89,10 @@ function table(name: "knowledge_sources" | "knowledge_chunks") {
     update: (patch: Partial<Source>) =>
       query((filters) => {
         const changed = db.sources.filter((r) => matches(r, filters));
+        // Like knowledge_sources_failure_reason_only_failed: a reason only on a failed source.
+        if (changed.some((r) => ({ ...r, ...patch }).failure_reason != null && ({ ...r, ...patch }).status !== "failed")) {
+          return { data: null, error: error("violates check constraint knowledge_sources_failure_reason_only_failed") };
+        }
         for (const r of changed) Object.assign(r, patch);
         if (changed.length > 0) db.afterUpdate?.(patch);
         return { data: changed.map((r) => ({ id: r.id })), error: null };
@@ -126,6 +137,7 @@ const addSource = (source: Partial<Source> & { id: string }): Source => {
 };
 
 const status = (id: string) => db.sources.find((s) => s.id === id)?.status;
+const failureReason = (id: string) => db.sources.find((s) => s.id === id)?.failure_reason;
 const chunksOf = (id: string) => db.chunks.filter((c) => c.source_id === id);
 
 /** A long text with many sentences, enough for several chunks. */
@@ -486,5 +498,77 @@ describe("processSource: failure → failed, no chunks left", () => {
     await processSource({ sourceId: "s-log2", projectId: PROJECT, type: "text", text: longText(5) });
     expect(logged()).toContain("embedding_failed");
     expect(logged()).not.toContain(SECRET);
+  });
+});
+
+describe("processSource: failure_reason", () => {
+  /** Every knowledge_sources update patch, in order. */
+  const patches: Partial<Source>[] = [];
+  beforeEach(() => {
+    patches.length = 0;
+    db.afterUpdate = (patch) => patches.push(patch);
+  });
+
+  it("ready clears the reason in the same update as the status", async () => {
+    addSource({ id: "s-ok" });
+    await processSource({ sourceId: "s-ok", projectId: PROJECT, type: "text", text: longText(5) });
+    expect(status("s-ok")).toBe("ready");
+    expect(failureReason("s-ok")).toBeNull();
+    expect(patches).toEqual([{ status: "ready", failure_reason: null }]);
+  });
+
+  it.each([
+    ["embedding_failed", () => embedTexts.mockRejectedValue(new Error("down")), "text", null],
+    ["text_too_long", () => {}, "text", null],
+    ["download_failed", () => {}, "txt", "k/missing.txt"],
+  ] as const)("failed stores %s with the status, in one update", async (reason, arrange, type, storageKey) => {
+    addSource({ id: `s-${reason}`, type, storage_key: storageKey });
+    arrange();
+    const text = reason === "text_too_long" ? "word ".repeat(MAX_EXTRACTED_TEXT_CHARS / 5 + 1) : longText(5);
+
+    const result = await processSource(
+      storageKey
+        ? { sourceId: `s-${reason}`, projectId: PROJECT, type, storageKey }
+        : { sourceId: `s-${reason}`, projectId: PROJECT, type: "text", text },
+    );
+
+    expect(result).toEqual({ status: "failed", reason });
+    expect(status(`s-${reason}`)).toBe("failed");
+    expect(failureReason(`s-${reason}`)).toBe(reason);
+    expect(patches).toEqual([{ status: "failed", failure_reason: reason }]);
+  });
+
+  it("a database error reading the source stores database_failed", async () => {
+    addSource({ id: "s-read" });
+    db.failSourceRead = true;
+    await processSource({ sourceId: "s-read", projectId: PROJECT, type: "text", text: "hi" });
+    expect(failureReason("s-read")).toBe("database_failed");
+  });
+
+  it("a re-run that succeeds after a failure ends ready with no reason", async () => {
+    // The claim (finalize) moves failed → processing and clears the reason; this is the rest.
+    addSource({ id: "s-retry" });
+    embedTexts.mockRejectedValueOnce(new Error("down"));
+    await processSource({ sourceId: "s-retry", projectId: PROJECT, type: "text", text: longText(5) });
+    expect(failureReason("s-retry")).toBe("embedding_failed");
+
+    Object.assign(db.sources.find((s) => s.id === "s-retry")!, { status: "processing", failure_reason: null });
+    await processSource({ sourceId: "s-retry", projectId: PROJECT, type: "text", text: longText(5) });
+    expect(status("s-retry")).toBe("ready");
+    expect(failureReason("s-retry")).toBeNull();
+  });
+
+  it("source_not_found and not_processing write nothing (no reason stored)", async () => {
+    addSource({ id: "s-done", status: "ready" });
+    expect(await processSource({ sourceId: "s-done", projectId: PROJECT, type: "text", text: "hi" })).toEqual({
+      status: "failed",
+      reason: "not_processing",
+    });
+    expect(await processSource({ sourceId: "s-none", projectId: PROJECT, type: "text", text: "hi" })).toEqual({
+      status: "failed",
+      reason: "source_not_found",
+    });
+    expect(patches).toEqual([]);
+    expect(failureReason("s-done")).toBeUndefined();
   });
 });

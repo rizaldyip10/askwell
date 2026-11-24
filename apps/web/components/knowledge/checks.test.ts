@@ -1,6 +1,7 @@
-import { KNOWLEDGE_ALLOWED_MIME_TYPES, MAX_KNOWLEDGE_FILE_BYTES } from "@askwell/shared";
+import { KNOWLEDGE_ALLOWED_MIME_TYPES, KNOWLEDGE_FAILURE_REASONS, MAX_KNOWLEDGE_FILE_BYTES } from "@askwell/shared";
 import { describe, expect, it } from "vitest";
 import {
+  failureReasonMessage,
   KNOWLEDGE_FILE_ACCEPT,
   checkKnowledgeFile,
   formatFileSize,
@@ -84,6 +85,22 @@ describe("formatFileSize", () => {
     [2.5 * MB, "2.5 MB"],
   ])("%d → %s", (bytes, label) => {
     expect(formatFileSize(bytes)).toBe(label);
+  });
+});
+
+describe("failureReasonMessage", () => {
+  it.each([...KNOWLEDGE_FAILURE_REASONS, null])("%s → one short plain sentence or two", (reason) => {
+    const message = failureReasonMessage(reason);
+    expect(message.length).toBeGreaterThan(10);
+    expect(message.length).toBeLessThanOrEqual(80);
+    expect(message).not.toMatch(/[\n<>]/);
+    expect(message).not.toMatch(/_/); // never the raw code
+  });
+
+  it("explains the common file problems specifically", () => {
+    expect(failureReasonMessage("no_text")).toBe("This file has no readable text. A scanned PDF needs a text layer.");
+    expect(failureReasonMessage("text_too_long")).toBe("This file has too much text. Split it into smaller files.");
+    expect(failureReasonMessage("unreadable")).toMatch(/couldn't read this file/);
   });
 });
 

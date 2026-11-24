@@ -113,6 +113,7 @@ describe("POST /api/projects/:id/knowledge (paste)", () => {
         title: "FAQ",
         type: "text",
         status: "processing",
+        failureReason: null,
         createdAt: "2026-11-19T00:00:00Z",
       },
     });

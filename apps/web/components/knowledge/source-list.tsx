@@ -6,11 +6,12 @@ import { formatDate } from "../projects/format";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { cn } from "../ui/cn";
-import { sourceStatusLabel, sourceTypeLabel, statusChangeAnnouncement } from "./checks";
+import { failureReasonMessage, sourceStatusLabel, sourceTypeLabel, statusChangeAnnouncement } from "./checks";
 import { DeleteSourceDialog } from "./delete-source-dialog";
 
 /**
- * The project's sources, newest first. Titles render as text, never HTML (§9 XSS). A polite
+ * The project's sources, newest first. Titles and failure reasons render as text, never HTML
+ * (§9 XSS). A failed source says why, in one line under its name. A polite
  * status region announces each source that finishes processing (Ready or Failed).
  */
 export function SourceList({ sources, onChanged }: { sources: KnowledgeSource[]; onChanged: () => void }) {
@@ -50,6 +51,10 @@ function SourceRow({ source, onChanged }: { source: KnowledgeSource; onChanged: 
         <p className="mt-1 text-xs text-fg-muted">
           {sourceTypeLabel(source.type)} · Added {formatDate(source.createdAt)}
         </p>
+        {source.status === "failed" ? (
+          // Text only, never HTML (§9 XSS).
+          <p className="mt-1 text-xs text-fg">{failureReasonMessage(source.failureReason)}</p>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <StatusBadge label={label} />

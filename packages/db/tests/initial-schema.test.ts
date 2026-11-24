@@ -355,7 +355,9 @@ describe("enum check constraints", () => {
     const { rows } = await db.pg.query<{ def: string }>(
       `select pg_get_constraintdef(c.oid) as def from pg_constraint c
        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.conkey)
-       where c.contype = 'c' and c.conrelid = $1::regclass and a.attname = $2`,
+       where c.contype = 'c' and c.conrelid = $1::regclass and a.attname = $2
+         -- The enum check is on this column alone (e.g. not failure_reason_only_failed, which also names status).
+         and cardinality(c.conkey) = 1`,
       [`public.${table}`, column],
     );
     expect(rows).toHaveLength(1);

@@ -1,4 +1,10 @@
-import { KNOWLEDGE_SOURCE_STATUSES, KNOWLEDGE_SOURCE_TYPES, PLAN_LIMITS, type KnowledgeSource } from "@askwell/shared";
+import {
+  KNOWLEDGE_SOURCE_STATUSES,
+  KNOWLEDGE_SOURCE_TYPES,
+  PLAN_LIMITS,
+  toKnowledgeFailureReason,
+  type KnowledgeSource,
+} from "@askwell/shared";
 import { auth } from "@clerk/nextjs/server";
 import type { Metadata } from "next";
 import { PageHeader } from "../../../../../components/dashboard/page-header";
@@ -31,7 +37,7 @@ export default async function KnowledgePage({ params }: Props) {
 async function listSources(owner: OwnerClient, projectId: string): Promise<KnowledgeSource[]> {
   const { data, error } = await owner
     .from("knowledge_sources")
-    .select("id, project_id, title, type, status, created_at")
+    .select("id, project_id, title, type, status, failure_reason, created_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
   // Thrown errors show the dashboard's error state (app/dashboard/error.tsx).
@@ -41,6 +47,8 @@ async function listSources(owner: OwnerClient, projectId: string): Promise<Knowl
     const type = KNOWLEDGE_SOURCE_TYPES.find((t) => t === row.type);
     const status = KNOWLEDGE_SOURCE_STATUSES.find((s) => s === row.status);
     if (!type || !status) return [];
-    return [{ id: row.id, projectId: row.project_id, title: row.title, type, status, createdAt: row.created_at }];
+    // The reason only means something on a failed source (the database enforces it too).
+    const failureReason = status === "failed" ? toKnowledgeFailureReason(row.failure_reason) : null;
+    return [{ id: row.id, projectId: row.project_id, title: row.title, type, status, failureReason, createdAt: row.created_at }];
   });
 }
