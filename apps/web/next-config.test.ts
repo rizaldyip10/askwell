@@ -1,11 +1,42 @@
 import { unstable_getResponseFromNextConfig } from "next/experimental/testing/server";
 import { describe, expect, it, vi } from "vitest";
-import nextConfig from "./next.config";
+import nextConfig, { SECURITY_HEADERS } from "./next.config";
 
 async function headersFor(path: string): Promise<Headers> {
   const res = await unstable_getResponseFromNextConfig({ url: `https://askwell.test${path}`, nextConfig });
   return res.headers;
 }
+
+describe("security headers on every response", () => {
+  const EXPECTED = {
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "strict-transport-security": "max-age=63072000; includeSubDomains",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+  };
+
+  it("are exactly the four headers from project.md §9", () => {
+    expect(Object.fromEntries(SECURITY_HEADERS.map((h) => [h.key.toLowerCase(), h.value]))).toEqual(EXPECTED);
+  });
+
+  it.each([
+    "/",
+    "/sign-in",
+    "/dashboard",
+    "/dashboard/projects/x",
+    "/embed",
+    "/embed?key=pk_123",
+    "/widget.js",
+    "/api/projects",
+    "/api/widget/config",
+    "/api/widget/chat",
+    "/api/clerk/webhook",
+    "/relay/e/",
+  ])("%s", async (path) => {
+    const h = await headersFor(path);
+    for (const [name, value] of Object.entries(EXPECTED)) expect(h.get(name), name).toBe(value);
+  });
+});
 
 describe("frame headers", () => {
   it.each(["/embed", "/embed/", "/embed/x", "/embed?key=pk_123"])("%s may be framed by any site", async (path) => {

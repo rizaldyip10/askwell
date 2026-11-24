@@ -83,6 +83,21 @@ describe("GET /api/widget/config", () => {
   });
 });
 
+describe("GET /api/widget/config unexpected errors", () => {
+  it("500 internal with CORS when Arcjet throws (outside the handler's try block)", async () => {
+    protect.mockRejectedValue(new Error("arcjet exploded"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await get(`?key=${KEY}`);
+
+    expect(res.status).toBe(500);
+    expect((await res.json()).error.code).toBe("internal");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expectCors(res);
+    expect(lookup).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+});
+
 describe("OPTIONS /api/widget/config", () => {
   it("204 with the CORS preflight headers", () => {
     const res = OPTIONS();
