@@ -4,7 +4,7 @@
 
 Askwell is an AI support chat widget for any website. You add your product information as text or files. You paste one script tag into your site. A chat button then appears on your site, and it answers visitor questions using only the information you gave it.
 
-If the answer isn't in your information, the bot says it doesn't know. It does not make answers up.
+The bot is instructed to answer only from your information, and to say it doesn't know when the answer isn't there.
 
 ## Who it's for
 
@@ -128,7 +128,7 @@ Not yet. Save them as PDF or paste the text instead.
 No. Askwell doesn't scrape websites. Add your content as text or files.
 
 **What happens if the bot doesn't know the answer?**
-It says it doesn't know. It answers only from your knowledge and doesn't make things up.
+It's instructed to say it doesn't know. It's told to answer only from your knowledge, not from general knowledge. Like any AI, it can occasionally get things wrong, so check your conversations now and then.
 
 **How much does it cost?**
 Free costs nothing and needs no credit card. It includes 1 project, 100 messages per month and 3 knowledge sources. Pro includes 5 projects, 2,000 messages per month per project, 25 knowledge sources per project and full customization. The current Pro price is on the pricing section and the Billing page.
