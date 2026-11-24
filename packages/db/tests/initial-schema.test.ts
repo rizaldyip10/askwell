@@ -132,7 +132,7 @@ describe("migration", () => {
   it("makes the RLS helpers SECURITY DEFINER, stable, with an empty search_path", async () => {
     const { rows } = await db.pg.query<{ proname: string; prosecdef: boolean; provolatile: string; proconfig: string[] }>(
       `select proname, prosecdef, provolatile, proconfig from pg_proc
-       where pronamespace = 'public'::regnamespace
+       where pronamespace = 'private'::regnamespace
          and proname in ('owned_conversation_ids', 'owned_project_ids') order by proname`,
     );
     expect(rows.map((r) => r.proname)).toEqual(["owned_conversation_ids", "owned_project_ids"]);
@@ -172,10 +172,10 @@ describe("owner isolation (authenticated)", () => {
   });
 
   it("the RLS helpers return only the caller's IDs", async () => {
-    expect((await db.asOwner(OWNER_A, "select public.owned_project_ids()::text as id")).rows).toEqual([
+    expect((await db.asOwner(OWNER_A, "select private.owned_project_ids()::text as id")).rows).toEqual([
       { id: ID.projectA },
     ]);
-    expect((await db.asOwner(OWNER_A, "select public.owned_conversation_ids()::text as id")).rows).toEqual([
+    expect((await db.asOwner(OWNER_A, "select private.owned_conversation_ids()::text as id")).rows).toEqual([
       { id: ID.convA },
     ]);
   });
@@ -191,7 +191,7 @@ describe("anon", () => {
   });
 
   it.each(["owned_project_ids", "owned_conversation_ids"])("cannot execute %s()", async (fn) => {
-    await expect(db.asAnon(`select public.${fn}()`)).rejects.toThrow(PERMISSION_DENIED);
+    await expect(db.asAnon(`select private.${fn}()`)).rejects.toThrow(PERMISSION_DENIED);
   });
 });
 
@@ -337,7 +337,7 @@ describe("service_role", () => {
   });
 
   it("cannot execute the RLS helpers (it doesn't need them)", async () => {
-    await expect(db.asService("select public.owned_project_ids()")).rejects.toThrow(PERMISSION_DENIED);
+    await expect(db.asService("select private.owned_project_ids()")).rejects.toThrow(PERMISSION_DENIED);
   });
 });
 
