@@ -15,7 +15,7 @@ import { TAP_HEIGHT, TAP_MIN, TAP_SIZE } from "../ui/tap-target";
 // Clerk's avatar stays 28 px; its trigger gets a 44 px hit area on phones and touch screens.
 // `!` because Clerk's own styles are unlayered and would beat Tailwind's layered utilities.
 const USER_BUTTON_APPEARANCE = {
-  elements: { userButtonTrigger: "justify-center rounded-pill max-sm:size-11! pointer-coarse:size-11!" },
+  elements: { userButtonTrigger: "justify-center rounded-pill max-sm:size-11! any-pointer-coarse:size-11!" },
 };
 
 function Brand() {

@@ -6,10 +6,10 @@ import { TAP_HEIGHT, TAP_MIN, TAP_SIZE } from "./tap-target";
 
 describe("tap targets", () => {
   it("are 44 px (h-11 / size-11) on phones and touch screens", () => {
-    expect(TAP_HEIGHT.split(" ").sort()).toEqual(["max-sm:h-11", "pointer-coarse:h-11"]);
-    expect(TAP_SIZE.split(" ").sort()).toEqual(["max-sm:size-11", "pointer-coarse:size-11"]);
+    expect(TAP_HEIGHT.split(" ").sort()).toEqual(["any-pointer-coarse:h-11", "max-sm:h-11"]);
+    expect(TAP_SIZE.split(" ").sort()).toEqual(["any-pointer-coarse:size-11", "max-sm:size-11"]);
     expect(TAP_MIN).toContain("max-sm:min-h-11");
-    expect(TAP_MIN).toContain("pointer-coarse:min-w-11");
+    expect(TAP_MIN).toContain("any-pointer-coarse:min-w-11");
   });
 
   it("apply to the default (md) button and keep its desktop height", () => {
