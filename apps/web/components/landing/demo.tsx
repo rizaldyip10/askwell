@@ -21,7 +21,8 @@ const MESSAGES: readonly DemoMessage[] = [
   },
 ];
 
-export function Demo() {
+/** `liveWidget`: the real widget runs on this page (LANDING_WIDGET_KEY is set), so invite visitors to try it. */
+export function Demo({ liveWidget }: { liveWidget: boolean }) {
   return (
     <section id="demo" aria-labelledby="demo-title" className="scroll-mt-20 py-20 sm:py-28">
       <Container className="grid items-center gap-12 lg:grid-cols-2">
@@ -29,18 +30,22 @@ export function Demo() {
           <SectionHeading
             id="demo-title"
             align="left"
-            eyebrow="Live demo"
+            eyebrow={liveWidget ? "Live demo" : "Demo"}
             title="A support chat that knows your product"
             description="Visitors open the chat, ask in their own words and get a clear answer. You read every conversation later."
           />
-          <p className="mt-6 flex items-center gap-2 text-sm font-medium text-fg">
-            <span aria-hidden="true" className="relative flex size-2">
-              <span className="absolute inline-flex size-full rounded-pill bg-fg opacity-60 motion-safe:animate-ping" />
-              <span className="relative inline-flex size-2 rounded-pill bg-fg" />
-            </span>
-            Try it: ask the bot in the corner.
-          </p>
-          <p className="mt-2 text-sm text-fg-subtle">It runs {APP_NAME} on this page and answers from our own docs.</p>
+          {liveWidget ? (
+            <>
+              <p className="mt-6 flex items-center gap-2 text-sm font-medium text-fg">
+                <span aria-hidden="true" className="relative flex size-2">
+                  <span className="absolute inline-flex size-full rounded-pill bg-fg opacity-60 motion-safe:animate-ping" />
+                  <span className="relative inline-flex size-2 rounded-pill bg-fg" />
+                </span>
+                Try it: ask the bot in the corner.
+              </p>
+              <p className="mt-2 text-sm text-fg-subtle">It runs {APP_NAME} on this page and answers from our own docs.</p>
+            </>
+          ) : null}
         </div>
 
         <div data-reveal className="flex flex-col items-end gap-4">

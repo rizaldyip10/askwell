@@ -93,9 +93,15 @@ describe("home page", () => {
     expect(renderToStaticMarkup(await Home())).not.toContain("data-landing-widget");
   });
 
-  it("labels the demo chat as a preview and points at the live button", () => {
-    expect(html).toContain("Try it: ask the bot in the corner.");
+  it("labels the demo chat as a preview", () => {
     expect(html).toContain(">Preview</span>");
+  });
+
+  it("points at the live button only when the widget runs", async () => {
+    expect(html).not.toContain("Try it: ask the bot in the corner.");
+    widgetKey.value = KEY;
+    expect(renderToStaticMarkup(await Home())).toContain("Try it: ask the bot in the corner.");
+    widgetKey.value = null;
   });
 
   it("builds the install snippet from appUrl()", () => {

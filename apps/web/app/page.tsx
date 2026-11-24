@@ -25,7 +25,7 @@ export default async function Home() {
       <main>
         <Hero />
         <HowItWorks />
-        <Demo />
+        <Demo liveWidget={widgetKey !== null} />
         <Pricing />
         <Install appUrl={origin} />
       </main>
