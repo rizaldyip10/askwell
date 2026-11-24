@@ -4,13 +4,13 @@ import { APP_NAME, PLANS, PLAN_LIMITS } from "@askwell/shared";
 import { PRICING_ROWS } from "../components/landing/pricing-rows";
 import Home from "./page";
 
-vi.mock("server-only", () => ({}));
-
 const APP_URL = "https://askwell.test";
-vi.stubEnv("VERCEL_ENV", "");
-vi.stubEnv("NEXT_PUBLIC_APP_URL", APP_URL);
-const html = renderToStaticMarkup(<Home />);
-vi.unstubAllEnvs();
+// Records the order of the request-time opt-in and the app URL read.
+const calls = vi.hoisted(() => [] as string[]);
+vi.mock("next/server", () => ({ connection: vi.fn(async () => void calls.push("connection")) }));
+vi.mock("../lib/app-url", () => ({ appUrl: vi.fn(() => (calls.push("appUrl"), "https://askwell.test")) }));
+
+const html = renderToStaticMarkup(await Home());
 
 /** The markup between `data-plan="<plan>"` and the end of that plan's card. */
 function planCard(plan: string): string {
@@ -63,6 +63,10 @@ describe("home page", () => {
     const signIn = links.filter(([, , text]) => text === "Sign in");
     expect(signIn.length).toBeGreaterThan(0);
     for (const [, href] of signIn) expect(href).toBe("/sign-in");
+  });
+
+  it("renders per request: connection() runs before appUrl() is read", () => {
+    expect(calls).toEqual(["connection", "appUrl"]);
   });
 
   it("builds the install snippet from appUrl()", () => {
