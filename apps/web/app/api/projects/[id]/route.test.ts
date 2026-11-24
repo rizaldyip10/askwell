@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { removeKnowledgeFiles } from "../../../../lib/knowledge/routes";
 import { fakeClient, fail, ok } from "../../../../lib/projects/test-utils";
 import { createOwnerClient } from "../../../../lib/supabase/owner";
 import { createServiceClient } from "../../../../lib/supabase/service";
@@ -9,6 +10,13 @@ const authMock = vi.fn<() => Promise<{ userId: string | null }>>();
 vi.mock("@clerk/nextjs/server", () => ({ auth: () => authMock() }));
 vi.mock("../../../../lib/supabase/owner", () => ({ createOwnerClient: vi.fn() }));
 vi.mock("../../../../lib/supabase/service", () => ({ createServiceClient: vi.fn() }));
+// The real shared helper, wrapped in a spy: the route must go through it, and its Storage
+// call is still exercised end to end.
+vi.mock("../../../../lib/knowledge/routes", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../lib/knowledge/routes")>();
+  return { ...actual, removeKnowledgeFiles: vi.fn(actual.removeKnowledgeFiles) };
+});
+const removeFiles = vi.mocked(removeKnowledgeFiles);
 
 const ID = "6f1c2a4e-8b3d-4c5e-9f7a-1b2c3d4e5f60";
 const OTHER_OWNERS_ID = "0b0b0b0b-0000-4000-8000-000000000000";
@@ -29,6 +37,7 @@ beforeEach(() => {
   owner = fakeClient();
   vi.mocked(createOwnerClient).mockReturnValue(owner.client as unknown as ReturnType<typeof createOwnerClient>);
   vi.mocked(createServiceClient).mockReset();
+  removeFiles.mockClear();
 });
 
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
@@ -64,6 +73,7 @@ describe("PATCH /api/projects/:id", () => {
     expect(calls).toContainEqual({ method: "update", args: [{ name: "Renamed" }] });
     expect(calls).toContainEqual({ method: "eq", args: ["id", ID] });
     expect(createServiceClient).not.toHaveBeenCalled();
+    expect(removeFiles).not.toHaveBeenCalled();
   });
 
   it("404 for another owner's (or a missing) project: RLS updates no row", async () => {
@@ -116,6 +126,7 @@ describe("DELETE /api/projects/:id", () => {
     expect(calls?.map((c) => c.method)).toContain("delete");
     expect(calls).toContainEqual({ method: "eq", args: ["id", ID] });
     expect(createServiceClient).not.toHaveBeenCalled();
+    expect(removeFiles).not.toHaveBeenCalled();
   });
 
   it("removes exactly the project's file keys (2 files, 1 pasted text), in one batch, after the delete", async () => {
@@ -131,6 +142,8 @@ describe("DELETE /api/projects/:id", () => {
     expect(read).toContainEqual({ method: "select", args: ["storage_key"] });
     expect(read).toContainEqual({ method: "eq", args: ["project_id", ID] });
     expect(read).toContainEqual({ method: "not", args: ["storage_key", "is", null] });
+    expect(removeFiles).toHaveBeenCalledTimes(1);
+    expect(removeFiles).toHaveBeenCalledWith(vi.mocked(createServiceClient).mock.results[0]?.value, KEYS, "delete project");
     expect(storage.from).toHaveBeenCalledWith("knowledge");
     expect(storage.remove).toHaveBeenCalledTimes(1);
     expect(storage.remove).toHaveBeenCalledWith(KEYS);
@@ -145,6 +158,7 @@ describe("DELETE /api/projects/:id", () => {
     expect(res.status).toBe(404);
     expect((await res.json()).error.code).toBe("not_found");
     expect(createServiceClient).not.toHaveBeenCalled();
+    expect(removeFiles).not.toHaveBeenCalled();
   });
 
   it("no row deleted → 404 and no files touched, even if keys were read", async () => {
@@ -152,6 +166,7 @@ describe("DELETE /api/projects/:id", () => {
     owner.queue("projects", ok([])); // e.g. deleted by another request in between
     expect((await del(ID)).status).toBe(404);
     expect(createServiceClient).not.toHaveBeenCalled();
+    expect(removeFiles).not.toHaveBeenCalled();
   });
 
   it("a Storage error is logged without file names and the delete still returns { ok: true }", async () => {
@@ -164,9 +179,8 @@ describe("DELETE /api/projects/:id", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
-    expect(log).toHaveBeenCalledWith("[projects] delete: removing knowledge files failed", {
-      projectId: ID,
-      fileCount: 2,
+    expect(log).toHaveBeenCalledWith("[knowledge] delete project: removing files failed", {
+      count: 2,
       error: "StorageApiError",
     });
     const logged = JSON.stringify(log.mock.calls);
@@ -183,6 +197,28 @@ describe("DELETE /api/projects/:id", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     expect((await del(ID)).status).toBe(200);
     expect(log).toHaveBeenCalledTimes(1);
+    log.mockRestore();
+  });
+
+  it("a service client that fails to start is logged, and the delete still returns { ok: true }", async () => {
+    owner.queue("knowledge_sources", ok(KEYS.map((storage_key) => ({ storage_key }))));
+    owner.queue("projects", ok([{ id: ID }]));
+    vi.mocked(createServiceClient).mockImplementation(() => {
+      throw new Error("SUPABASE_SECRET_KEY is not set");
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await del(ID);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(removeFiles).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("[projects] delete: removing knowledge files failed", {
+      projectId: ID,
+      fileCount: 2,
+      error: "Error",
+    });
+    for (const key of KEYS) expect(JSON.stringify(log.mock.calls)).not.toContain(key);
     log.mockRestore();
   });
 
