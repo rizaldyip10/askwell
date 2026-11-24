@@ -305,8 +305,6 @@ export type Database = {
         Args: { p_now: string; p_period_start: string }
         Returns: string
       }
-      owned_conversation_ids: { Args: never; Returns: string[] }
-      owned_project_ids: { Args: never; Returns: string[] }
       owner_activity: {
         Args: never
         Returns: {
