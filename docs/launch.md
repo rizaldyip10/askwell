@@ -134,7 +134,7 @@ Vercel → Settings → Environment Variables. For each row, add the variable to
 
 **A migration fails** (step 1.4, or any later one):
 1. Stop. Don't promote a build that needs the failing migration.
-2. Read the error `supabase db push` printed. Each migration file runs in one transaction, so a failed file leaves **nothing** of itself behind, and `supabase migration list` doesn't show its version as Remote. The files before it stay applied.
+2. Read the error `supabase db push` printed. The CLI runs each file in one transaction, so a failed file normally leaves **nothing** of itself behind, and `supabase migration list` doesn't show its version as Remote. The files before it stay applied. That holds unless a file manages its own transactions (its own `BEGIN`/`COMMIT`, or a no-transaction setting). None of the 7 files does today. If a later one does, the statements before the failure stay applied: list what exists (Database → Tables, Functions, Storage) and include it in step 3's message.
 3. Don't run SQL by hand and don't edit the file. Send the error, the file name and the `supabase migration list` output to the lead. Note: a **newer** migration can't fix it. `supabase db push` always retries the failed file first and stops there again.
 4. The lead plans the fix with you. Every file already ran on dev, so the cause is usually something in prod's state (a missing extension, an object left from a manual change, a setting). Fixing that and running `supabase db push` again is enough. If the file itself must change, it's a contract change: the lead plans how the corrected file and the migration history (`supabase migration repair`) stay the same on dev and prod, and you approve it.
 5. After the fix: `supabase db push` again, then check `supabase migration list` and the security advisor (steps 1.4–1.6).
@@ -143,6 +143,6 @@ Vercel → Settings → Environment Variables. For each row, add the variable to
 **Wrong data or a bad project in prod.** Dev data is never copied, so there's nothing to restore from dev. The Supabase Free plan has no point-in-time recovery; before the first launch, the simplest reset is to delete the prod project and redo step 1. A new project has a new URL and keys, so then also:
 1. Replace the three Supabase variables in Vercel Production with the new project's values (step 3).
 2. Redeploy and promote (step 4). The live build keeps the deleted project's values until a new deployment replaces it.
-3. Redo step 5: the landing project lived in the deleted database, so create it again and set the new `LANDING_WIDGET_KEY`.
+3. Redo step 5 from 5.3: the landing project lived in the deleted database, so create it again and set the new `LANDING_WIDGET_KEY`. The landing owner still exists in Clerk, so **sign in** as that owner (don't sign up again). The new database has no plan for them: they show Free until Clerk sends their next subscription event. Tell the lead if the landing account must be Pro again right away.
 
 **The production webhook misbehaves.** Clerk → Webhooks → the production endpoint → **Disable**. Plans stop syncing in prod (no one gains or loses Pro); dev and previews are untouched. Turn it on again once fixed. Failed deliveries stay in the endpoint's message log; resend them from there.
