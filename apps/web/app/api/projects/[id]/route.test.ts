@@ -200,6 +200,28 @@ describe("DELETE /api/projects/:id", () => {
     log.mockRestore();
   });
 
+  it("a service client that fails to start is logged, and the delete still returns { ok: true }", async () => {
+    owner.queue("knowledge_sources", ok(KEYS.map((storage_key) => ({ storage_key }))));
+    owner.queue("projects", ok([{ id: ID }]));
+    vi.mocked(createServiceClient).mockImplementation(() => {
+      throw new Error("SUPABASE_SECRET_KEY is not set");
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await del(ID);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(removeFiles).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("[projects] delete: removing knowledge files failed", {
+      projectId: ID,
+      fileCount: 2,
+      error: "Error",
+    });
+    for (const key of KEYS) expect(JSON.stringify(log.mock.calls)).not.toContain(key);
+    log.mockRestore();
+  });
+
   it("500 on a database error reading the files, with nothing deleted", async () => {
     owner.queue("knowledge_sources", fail("XX000", "boom"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});

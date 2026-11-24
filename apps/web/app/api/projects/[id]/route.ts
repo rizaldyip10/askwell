@@ -90,7 +90,18 @@ export async function DELETE(_request: Request, context: Context): Promise<Respo
     // 3. Only now, with ownership proven by the delete: remove the files (service client,
     //    one batch, best effort, via the shared knowledge helper). The project is gone either
     //    way, so a failure is logged (count only, never file names) and the delete still succeeds.
-    if (keys.length > 0) await removeKnowledgeFiles(createServiceClient(), keys, "delete project");
+    //    The helper never throws, but creating the service client can (e.g. a missing key).
+    if (keys.length > 0) {
+      try {
+        await removeKnowledgeFiles(createServiceClient(), keys, "delete project");
+      } catch (error) {
+        console.error("[projects] delete: removing knowledge files failed", {
+          projectId: id,
+          fileCount: keys.length,
+          error: error instanceof Error ? error.name : "unknown",
+        });
+      }
+    }
 
     const body: DeleteProjectResponse = { ok: true };
     return Response.json(body);
