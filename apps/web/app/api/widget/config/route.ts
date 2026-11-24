@@ -5,9 +5,10 @@ import { widgetConfigQuerySchema, type WidgetConfigResponse } from "@askwell/sha
 import type { NextRequest } from "next/server";
 import { protectWidgetConfig } from "../../../../lib/security";
 import { getWidgetConfigByKey } from "../../../../lib/widget/config";
-import { widgetError, widgetJson, widgetPreflight } from "../../../../lib/widget/http";
+import { widgetError, widgetJson, widgetPreflight, withWidgetCors } from "../../../../lib/widget/http";
 
-export async function GET(request: NextRequest): Promise<Response> {
+// Any throw outside the try blocks below still gets CORS (withWidgetCors).
+export const GET = withWidgetCors("config", async (request: NextRequest): Promise<Response> => {
   const parsed = widgetConfigQuerySchema.safeParse({ key: request.nextUrl.searchParams.get("key") ?? undefined });
   if (!parsed.success) {
     return widgetError(400, "validation_error", parsed.error.issues[0]?.message ?? "Invalid query");
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     console.error("[widget] config lookup failed", error);
     return widgetError(500, "internal", "Something went wrong");
   }
-}
+});
 
 export function OPTIONS(): Response {
   return widgetPreflight();

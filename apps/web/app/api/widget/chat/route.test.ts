@@ -288,6 +288,26 @@ describe("POST /api/widget/chat", () => {
     expect(answer).not.toHaveBeenCalled();
   });
 
+  it("500 internal with CORS when Arcjet throws (outside the handler's try blocks); nothing counted", async () => {
+    protect.mockRejectedValueOnce(new Error("arcjet exploded"));
+    await expectError(await post(validBody()), 500, "internal");
+    expect(consume).not.toHaveBeenCalled();
+  });
+
+  it("500 internal with CORS when the request body stream fails; the message is not logged", async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(`{"message":"${SECRET_TEXT}`));
+        controller.error(new Error("connection reset"));
+      },
+    });
+    const res = await POST(
+      new Request("https://askwell.test/api/widget/chat", { method: "POST", body, duplex: "half" } as RequestInit),
+    );
+    await expectError(res, 500, "internal");
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain(SECRET_TEXT);
+  });
+
   it("OPTIONS answers the preflight with CORS", () => {
     const res = OPTIONS();
     expect(res.status).toBe(204);

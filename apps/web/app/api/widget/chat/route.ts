@@ -17,7 +17,7 @@ import {
   saveChatTurn,
 } from "../../../../lib/chat";
 import { protectWidgetChat } from "../../../../lib/security";
-import { readJsonBody, widgetError, widgetJson, widgetPreflight } from "../../../../lib/widget/http";
+import { readJsonBody, widgetError, widgetJson, widgetPreflight, withWidgetCors } from "../../../../lib/widget/http";
 
 const NOT_FOUND = "No project or conversation with that id";
 
@@ -37,7 +37,8 @@ function logError(step: string, error: unknown): void {
   console.error(`[chat] ${step}`, summary);
 }
 
-export async function POST(request: Request): Promise<Response> {
+// Any throw outside the try blocks below still gets CORS (withWidgetCors).
+export const POST = withWidgetCors("chat", async (request: Request): Promise<Response> => {
   // 1. Validate the body shape (message length is in the schema).
   const body = await readJsonBody(request, MAX_BODY_BYTES);
   if (!body.ok) {
@@ -118,7 +119,7 @@ export async function POST(request: Request): Promise<Response> {
     logError("answer failed after counting", error);
     return widgetError(500, "internal", "Something went wrong");
   }
-}
+});
 
 export function OPTIONS(): Response {
   return widgetPreflight();

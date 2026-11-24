@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { readJsonBody, WIDGET_CORS_HEADERS, widgetError, widgetJson, widgetPreflight } from "./http";
+import { describe, expect, it, vi } from "vitest";
+import { readJsonBody, WIDGET_CORS_HEADERS, widgetError, widgetJson, widgetPreflight, withWidgetCors } from "./http";
 
 describe("widget http helpers", () => {
   it("widgetJson sends CORS headers and merges extra headers", async () => {
@@ -22,6 +22,31 @@ describe("widget http helpers", () => {
     expect(res.status).toBe(204);
     for (const [name, value] of Object.entries(WIDGET_CORS_HEADERS)) expect(res.headers.get(name)).toBe(value);
     expect(res.headers.get("access-control-allow-credentials")).toBeNull();
+  });
+});
+
+describe("withWidgetCors", () => {
+  it("passes the handler's response through untouched", async () => {
+    const inner = widgetJson({ ok: true }, { status: 201 });
+    const wrapped = withWidgetCors("test", async (n: number) => (n === 1 ? inner : widgetError(400, "validation_error", "x")));
+    expect(await wrapped(1)).toBe(inner);
+    expect((await wrapped(2)).status).toBe(400);
+  });
+
+  it("turns a throw into a CORS'd 500, logging only the error's name and message", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const err = Object.assign(new Error("boom"), { details: "secret row data" });
+    const res = await withWidgetCors("test", async () => {
+      throw err;
+    })();
+
+    expect(res.status).toBe(500);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    for (const [name, value] of Object.entries(WIDGET_CORS_HEADERS)) expect(res.headers.get(name)).toBe(value);
+    expect(await res.json()).toEqual({ error: { code: "internal", message: "Something went wrong" } });
+    expect(log).toHaveBeenCalledWith("[widget] test failed", "Error: boom");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret row data");
+    log.mockRestore();
   });
 });
 

@@ -27,6 +27,27 @@ export function widgetPreflight(): Response {
   return new Response(null, { status: 204, headers: WIDGET_CORS_HEADERS });
 }
 
+/**
+ * Wrap a public widget route handler so an unexpected throw (Arcjet, a broken request body,
+ * anything outside the handler's own try blocks) still answers with a CORS'd 500 instead of
+ * Next's bare error page, which the widget's cross-origin fetch couldn't even read.
+ * Logs the error's name and message only: never the request or the whole error object.
+ */
+export function withWidgetCors<A extends unknown[]>(
+  route: string,
+  handler: (...args: A) => Promise<Response>,
+): (...args: A) => Promise<Response> {
+  return async (...args) => {
+    try {
+      return await handler(...args);
+    } catch (error) {
+      const summary = error instanceof Error ? `${error.name}: ${error.message}` : "unknown error";
+      console.error(`[widget] ${route} failed`, summary);
+      return widgetError(500, "internal", "Something went wrong");
+    }
+  };
+}
+
 export type JsonBodyResult = { ok: true; value: unknown } | { ok: false; reason: "too_large" | "invalid_json" };
 
 /**

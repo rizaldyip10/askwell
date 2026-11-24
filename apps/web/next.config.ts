@@ -8,6 +8,14 @@ const SELF_FRAME_HEADERS = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
 ];
 
+// Sent on every response (project.md §9). HSTS: two years, subdomains included.
+export const SECURITY_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+];
+
 // The loader runs on any customer site (project.md §6.5, CORS in §9).
 const WIDGET_JS_HEADERS = [
   { key: "Content-Type", value: "application/javascript; charset=utf-8" },
@@ -25,6 +33,7 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
       { source: "/embed", headers: EMBED_FRAME_HEADERS },
       { source: "/embed/:path*", headers: EMBED_FRAME_HEADERS },
       // Everything except /embed and below.
