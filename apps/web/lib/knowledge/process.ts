@@ -61,7 +61,7 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
       (error.reason === "source_not_found" || error.reason === "not_processing");
     if (!notOurs) {
       await cleanupStep(input, "set failed", () =>
-        setStatusIfProcessing(supabase, input.sourceId, input.projectId, "failed"),
+        setStatusIfProcessing(supabase, input.sourceId, input.projectId, "failed", reasonOf(error)),
       );
     }
     return fail(input, error);
@@ -100,7 +100,7 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
       inserted.push(...(data ?? []).map((row) => row.id));
     }
 
-    if (!(await setStatusIfProcessing(supabase, source.id, source.project_id, "ready"))) {
+    if (!(await setStatusIfProcessing(supabase, source.id, source.project_id, "ready", null))) {
       throw new KnowledgeProcessingError("not_processing", "The source is no longer processing");
     }
     return { status: "ready", chunkCount: chunks.length };
@@ -117,7 +117,9 @@ export async function processSource(input: ProcessSourceInput): Promise<ProcessS
     await cleanupStep(input, "delete older chunks", async () => {
       if (await isProcessing(supabase, source.id)) await deleteChunks(supabase, source.id);
     });
-    await cleanupStep(input, "set failed", () => setStatusIfProcessing(supabase, source.id, source.project_id, "failed"));
+    await cleanupStep(input, "set failed", () =>
+      setStatusIfProcessing(supabase, source.id, source.project_id, "failed", reasonOf(error)),
+    );
     return fail(input, error);
   }
 }
@@ -139,18 +141,20 @@ async function isProcessing(supabase: ServiceClient, sourceId: string): Promise<
 }
 
 /**
- * Move the source from `processing` to `status`, scoped to its project. False if it wasn't
- * processing (or is gone, or isn't in that project).
+ * Move the source from `processing` to `status`, scoped to its project, with its failure
+ * reason in the same update: the reason for `failed`, null for `ready` (the database
+ * allows a reason only on a failed source). False if it wasn't processing (or is gone,
+ * or isn't in that project).
  */
 async function setStatusIfProcessing(
   supabase: ServiceClient,
   sourceId: string,
   projectId: string,
-  status: "ready" | "failed",
+  ...[status, reason]: ["ready", null] | ["failed", KnowledgeFailureReason]
 ): Promise<boolean> {
   const { data, error } = await supabase
     .from("knowledge_sources")
-    .update({ status })
+    .update({ status, failure_reason: reason })
     .eq("id", sourceId)
     .eq("project_id", projectId)
     .eq("status", "processing")
@@ -228,7 +232,7 @@ function describe(error: unknown): string {
 }
 
 function fail(input: ProcessSourceInput, error: unknown): ProcessSourceResult {
-  const reason = error instanceof KnowledgeProcessingError ? error.reason : "database_failed";
+  const reason = reasonOf(error);
   log(input, reason, error);
   return { status: "failed", reason };
 }
@@ -243,4 +247,9 @@ function log(input: ProcessSourceInput, what: string, error: unknown): void {
     type: input.type,
     detail,
   });
+}
+
+/** The failure reason for an error: its own, or `database_failed` for anything unexpected. */
+function reasonOf(error: unknown): KnowledgeFailureReason {
+  return error instanceof KnowledgeProcessingError ? error.reason : "database_failed";
 }

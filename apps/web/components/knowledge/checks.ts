@@ -7,6 +7,7 @@ import {
   KNOWLEDGE_FILE_TYPES,
   MAX_KNOWLEDGE_FILE_BYTES,
   knowledgeFileTypeFromName,
+  type KnowledgeFailureReason,
   type KnowledgeFileType,
   type KnowledgeSourceStatus,
   type KnowledgeSourceType,
@@ -65,6 +66,33 @@ export function sourceStatusLabel(status: KnowledgeSourceStatus): "Processing" |
       return "Ready";
     case "failed":
       return "Failed";
+  }
+}
+
+/**
+ * One short line for the owner on why a source failed, and what to do. Shown as text under
+ * the source's name. Unknown (null) reasons, e.g. sources that failed before reasons were
+ * stored, get the generic line.
+ */
+export function failureReasonMessage(reason: KnowledgeFailureReason | null): string {
+  switch (reason) {
+    case "unreadable":
+      return "We couldn't read this file. Check that it opens, then upload it again.";
+    case "no_text":
+      return "This file has no readable text. A scanned PDF needs a text layer.";
+    case "text_too_long":
+      return "This file has too much text. Split it into smaller files.";
+    case "file_too_large":
+      return "This file is larger than 10 MB.";
+    case "download_failed":
+      return "We couldn't load the uploaded file. Upload it again.";
+    case "embedding_failed":
+    case "database_failed":
+      return "Something went wrong on our side. Delete it and add it again.";
+    case "source_not_found":
+    case "not_processing":
+    case null:
+      return "Something went wrong. Delete it and add it again.";
   }
 }
 

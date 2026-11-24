@@ -44,10 +44,11 @@ export async function POST(request: Request, context: Context): Promise<Response
     const { userId, projectId, body } = checked;
     const service = createServiceClient();
 
-    // 1. The claim.
+    // 1. The claim. A processing source never has a failure reason (the database allows
+    //    one only on a failed source), so the claim clears it too.
     const { data: claimed, error: claimError } = await service
       .from("knowledge_sources")
-      .update({ status: "processing" })
+      .update({ status: "processing", failure_reason: null })
       .eq("id", body.sourceId)
       .eq("project_id", projectId)
       .eq("status", "uploading")

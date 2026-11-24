@@ -83,7 +83,7 @@ describe("POST /api/projects/:id/knowledge/finalize", () => {
     expect(createServiceClient).not.toHaveBeenCalled();
   });
 
-  it("claims with one conditional update uploading → processing, scoped to the source and project", async () => {
+  it("claims with one conditional update uploading → processing (clearing any reason), scoped to the source and project", async () => {
     owned();
     claimWins();
     storage.bucket.download.mockResolvedValueOnce({ data: blob(PDF), error: null });
@@ -94,14 +94,14 @@ describe("POST /api/projects/:id/knowledge/finalize", () => {
     const [claim] = service.callsTo("knowledge_sources");
     expect(claim).toEqual([
       { method: "from", args: ["knowledge_sources"] },
-      { method: "update", args: [{ status: "processing" }] },
+      { method: "update", args: [{ status: "processing", failure_reason: null }] },
       { method: "eq", args: ["id", SOURCE_ID] },
       { method: "eq", args: ["project_id", PROJECT_ID] },
       { method: "eq", args: ["status", "uploading"] },
       { method: "select", args: ["*"] },
       { method: "maybeSingle", args: [] },
     ]);
-    expect((await res.json()).source).toMatchObject({ id: SOURCE_ID, status: "processing", type: "pdf" });
+    expect((await res.json()).source).toMatchObject({ id: SOURCE_ID, status: "processing", type: "pdf", failureReason: null });
     expect(storage.bucket.download).toHaveBeenCalledWith(KEY);
     expect(processSource).not.toHaveBeenCalled();
     await runAfter();

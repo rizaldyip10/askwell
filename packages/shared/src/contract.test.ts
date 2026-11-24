@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  KNOWLEDGE_FAILURE_REASONS,
+  toKnowledgeFailureReason,
   API_ERROR_CODES,
   apiErrorSchema,
   createProjectRequestSchema,
@@ -132,6 +134,17 @@ describe("project requests", () => {
   it("validates the :id param", () => {
     expect(idParamsSchema.safeParse({ id: UUID }).success).toBe(true);
     expect(idParamsSchema.safeParse({ id: "1" }).success).toBe(false);
+  });
+});
+
+describe("knowledge failure reasons", () => {
+  it("are unique", () => {
+    expect(new Set(KNOWLEDGE_FAILURE_REASONS).size).toBe(KNOWLEDGE_FAILURE_REASONS.length);
+  });
+
+  it("toKnowledgeFailureReason keeps a known reason and turns anything else into null", () => {
+    for (const reason of KNOWLEDGE_FAILURE_REASONS) expect(toKnowledgeFailureReason(reason)).toBe(reason);
+    for (const value of [null, undefined, "", "boom", "NO_TEXT"]) expect(toKnowledgeFailureReason(value)).toBeNull();
   });
 });
 
