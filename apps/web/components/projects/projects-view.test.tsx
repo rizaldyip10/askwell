@@ -68,4 +68,12 @@ describe("ProjectsView", () => {
     const html = renderToStaticMarkup(<ProjectsView projects={[project("a1", "Docs site")]} usage={{}} />);
     expect(html).toContain("Usage unavailable");
   });
+
+  it("keeps the list to one column below 640 px, so a long name can't widen the page", () => {
+    const long = "Acme Outdoor Supply Co. — Main storefront website";
+    const html = renderToStaticMarkup(<ProjectsView projects={[project("a1", long)]} usage={null} />);
+    expect(html).toMatch(/<ul aria-label="Your projects" class="grid grid-cols-1 /);
+    expect(html).toMatch(/<li class="[^"]*\bmin-w-0\b/);
+    expect(html).toMatch(/<h2 class="truncate /);
+  });
 });

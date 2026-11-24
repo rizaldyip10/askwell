@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps } from "react";
 import { cn } from "./cn";
+import { TAP_HEIGHT } from "./tap-target";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost";
 export type ButtonSize = "md" | "lg";
@@ -16,7 +17,7 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  md: "h-10 px-4 text-sm",
+  md: `h-10 px-4 text-sm ${TAP_HEIGHT}`,
   lg: "h-12 px-6 text-base",
 };
 

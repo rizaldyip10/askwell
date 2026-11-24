@@ -10,10 +10,17 @@ import { Logo } from "../landing/logo";
 import { cn } from "../ui/cn";
 import { projectIdFromPath } from "../../lib/auth/routes";
 import { NAV_ITEMS, activeNavHref, projectNavItems, type NavItem } from "./nav-items";
+import { TAP_HEIGHT, TAP_MIN, TAP_SIZE } from "../ui/tap-target";
+
+// Clerk's avatar stays 28 px; its trigger gets a 44 px hit area on phones and touch screens.
+// `!` because Clerk's own styles are unlayered and would beat Tailwind's layered utilities.
+const USER_BUTTON_APPEARANCE = {
+  elements: { userButtonTrigger: "justify-center rounded-pill max-sm:size-11! any-pointer-coarse:size-11!" },
+};
 
 function Brand() {
   return (
-    <Link href="/dashboard" className="flex items-center gap-2 font-semibold tracking-tight">
+    <Link href="/dashboard" className={cn("flex items-center gap-2 font-semibold tracking-tight", TAP_MIN)}>
       <Logo />
       <span>{APP_NAME}</span>
     </Link>
@@ -34,6 +41,7 @@ function NavLinks({ items, onNavigate }: { items: readonly NavItem[]; onNavigate
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex h-10 items-center rounded-control px-3 text-sm font-medium transition-colors",
+                TAP_HEIGHT,
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg",
                 isActive ? "bg-primary text-primary-fg" : "text-fg-muted hover:bg-glass-strong hover:text-fg",
               )}
@@ -95,7 +103,7 @@ export function DashboardShell({ children, plan = null }: { children: ReactNode;
             <DashboardNav />
           </nav>
           <div className="flex items-center gap-3 border-t border-glass-line pt-4">
-            <UserButton />
+            <UserButton appearance={USER_BUTTON_APPEARANCE} />
             {plan ? <PlanBadge plan={plan} /> : null}
           </div>
         </div>
@@ -107,13 +115,16 @@ export function DashboardShell({ children, plan = null }: { children: ReactNode;
           <Brand />
           <div className="flex items-center gap-2">
             {plan ? <PlanBadge plan={plan} /> : null}
-            <UserButton />
+            <UserButton appearance={USER_BUTTON_APPEARANCE} />
             <button
               type="button"
               aria-expanded={menuOpen}
               aria-controls={menuId}
               onClick={() => setMenuOpen((o) => !o)}
-              className="inline-flex size-10 items-center justify-center rounded-control text-fg-muted hover:bg-glass hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg"
+              className={cn(
+                "inline-flex size-10 items-center justify-center rounded-control text-fg-muted hover:bg-glass hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg",
+                TAP_SIZE,
+              )}
             >
               <span className="sr-only">{menuOpen ? "Close menu" : "Open menu"}</span>
               <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">

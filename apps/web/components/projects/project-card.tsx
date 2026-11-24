@@ -21,7 +21,7 @@ export function ProjectCard({ project, usage }: { project: Project; usage: Proje
   const close = () => setDialog(null);
 
   return (
-    <GlassPanel as="li" className="relative flex flex-col gap-4 p-5 transition-colors hover:bg-glass-strong">
+    <GlassPanel as="li" className="relative flex min-w-0 flex-col gap-4 p-5 transition-colors hover:bg-glass-strong">
       <div className="min-w-0">
         <h2 className="truncate text-base font-semibold tracking-tight">
           <Link
