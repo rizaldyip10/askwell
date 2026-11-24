@@ -71,6 +71,9 @@ The webhook keeps `accounts.plan` in sync. Production needs its own endpoint, be
    - [ ] Two endpoints now: the preview one (unchanged) and the production one.
 
 **Good to know:** both endpoints get every billing event, because dev and prod share one Clerk instance. Each writes only to its own database. A user who upgraded **before** the production endpoint existed shows as Free in production until their next subscription event. Use a fresh user for anything that must be Pro in production (step 5).
+Two side effects, both accepted for launch:
+- **Accounts in the other database.** Each endpoint creates an `accounts` row for the user if there isn't one, so a preview user who subscribes gets a row in prod, and a prod user gets one in dev.
+- **`upgraded` counted twice.** Both endpoints send `upgraded` to the same PostHog project, so one upgrade shows as two events. Read the funnel's last step with that in mind.
 
 ## 3. Vercel Production variables
 
