@@ -5,7 +5,9 @@ Do them in order. Each step ends with a check. Tick it before moving on.
 
 **Decisions this runbook follows**
 
-- Production uses the **same Clerk development instance** as dev and previews, with its test keys (product owner decision, 2026-11-24). Billing stays in test mode, so Pro is paid with a test card.
+- Production uses the **same Clerk development instance** as dev and previews, with its test keys (product owner decision, 2026-11-24). Billing stays in test mode, so Pro is paid with a test card. Two limits come with it:
+  - **100 users in total.** Clerk caps a development instance at 100 users, and dev, previews and production share them (18 on 2026-11-24). Past the cap, new sign-ups fail. Delete test users after each check (Clerk → Users). Moving production to a Clerk production instance (needs your own domain) is a later decision for the lead and you.
+  - **Test addresses are open.** Anyone can sign in to an email containing `+clerk_test` with code `424242`. Never own anything real with such an address, and delete each test account right after its check.
 - Supabase **prod** is a new, empty project. Only migration files reach it. Never copy data from dev.
 - Vercel's automatic production promotion stays **off**. Nothing is live until you press Promote.
 
@@ -104,10 +106,11 @@ Vercel → Settings → Environment Variables. For each row, add the variable to
    - [ ] `<prod-url>/` loads the dark landing page, with no chat button yet (no `LANDING_WIDGET_KEY`).
    - [ ] `<prod-url>/widget.js` loads (JavaScript, not a 404).
    - [ ] Sign up with a fresh `+clerk_test` email (code `424242`) → you land on an empty dashboard. In prod Supabase, Table Editor → `accounts` has that user's row. This proves Clerk tokens reach prod RLS.
+   - [ ] Delete that test user: Clerk → Users → the user → Delete; then in prod Supabase delete its `accounts` row.
 
 ## 5. The landing page's widget in production
 
-1. **Owner account.** Sign in on `<prod-url>` with the account that will own the landing project. Use one created **after** step 2 (see "Good to know" there).
+1. **Owner account.** Sign up on `<prod-url>` with the account that will own the landing project: a **real address you control, without `+clerk_test`** (those accept code `424242` from anyone). Create it **after** step 2 (see "Good to know" there).
 2. **Make it Pro (recommended).** On Free, the landing bot answers 100 messages a month and then shows the quota message to every visitor until the month resets. Pro gives 2,000 a month. Billing → Pro → **Subscribe** → **Pay with test card** → **Continue** (test mode, no real charge).
    - [ ] Billing shows Pro. Prod Supabase: `accounts.plan = pro` for that user (this also proves the production webhook works).
    - Staying on Free also works; then the panel shows "Powered by Askwell" and the 100-message limit applies.
@@ -118,7 +121,7 @@ Vercel → Settings → Environment Variables. For each row, add the variable to
 7. Build and promote again, as in step 4 (Redeploy the current production deployment → Ready → Promote). The page reads the key per request, but Vercel applies new variables only to new deployments.
    - [ ] `<prod-url>/` shows the "Ask us" button in the bottom-right corner and the "Try it: ask the bot in the corner." line.
    - [ ] Ask "How many projects can I have on Pro?" → "5". Ask "Who won the 2018 FIFA World Cup?" → "I don't know…".
-8. Run the full core flow (`project.md` §2, all 9 steps) on `<prod-url>`, as in the P6H-T10 PR. Phase 6 is done when all 9 pass.
+8. Run the full core flow (`project.md` §2, all 9 steps) on `<prod-url>`, as in the P6H-T10 PR. Phase 6 is done when all 9 pass. Use a separate test owner for it, not the landing owner. Afterwards end its Pro item and delete it (Clerk user, then its `accounts` row and projects in prod Supabase).
 
 ## 6. Rollback
 
@@ -128,11 +131,15 @@ Vercel → Settings → Environment Variables. For each row, add the variable to
 
 **A migration fails** (step 1.4, or any later one):
 1. Stop. Don't promote a build that needs the failing migration.
-2. Read the error `supabase db push` printed. Each migration file runs in one transaction, so a failed file leaves **nothing** of itself behind, and `supabase migration list` doesn't show its version as Remote.
-3. Don't edit the merged file and don't run SQL by hand to "finish" it. Send the error and the file name to the lead. The fix is a new migration in a new PR (merged files never change).
-4. After that PR merges: `supabase db push` again, then check `supabase migration list` and the security advisor (steps 1.4–1.6).
-5. Migrations are additive (§4), so the build already live keeps working while you wait.
+2. Read the error `supabase db push` printed. Each migration file runs in one transaction, so a failed file leaves **nothing** of itself behind, and `supabase migration list` doesn't show its version as Remote. The files before it stay applied.
+3. Don't run SQL by hand and don't edit the file. Send the error, the file name and the `supabase migration list` output to the lead. Note: a **newer** migration can't fix it. `supabase db push` always retries the failed file first and stops there again.
+4. The lead plans the fix with you. Every file already ran on dev, so the cause is usually something in prod's state (a missing extension, an object left from a manual change, a setting). Fixing that and running `supabase db push` again is enough. If the file itself must change, it's a contract change: the lead plans how the corrected file and the migration history (`supabase migration repair`) stay the same on dev and prod, and you approve it.
+5. After the fix: `supabase db push` again, then check `supabase migration list` and the security advisor (steps 1.4–1.6).
+6. Migrations are additive (§4), so the build already live keeps working while you wait.
 
-**Wrong data or a bad project in prod.** Dev data is never copied, so there's nothing to restore from dev. The Supabase Free plan has no point-in-time recovery; before the first launch, the simplest reset is to delete the prod project and redo step 1.
+**Wrong data or a bad project in prod.** Dev data is never copied, so there's nothing to restore from dev. The Supabase Free plan has no point-in-time recovery; before the first launch, the simplest reset is to delete the prod project and redo step 1. A new project has a new URL and keys, so then also:
+1. Replace the three Supabase variables in Vercel Production with the new project's values (step 3).
+2. Redeploy and promote (step 4). The live build keeps the deleted project's values until a new deployment replaces it.
+3. Redo step 5: the landing project lived in the deleted database, so create it again and set the new `LANDING_WIDGET_KEY`.
 
 **The production webhook misbehaves.** Clerk → Webhooks → the production endpoint → **Disable**. Plans stop syncing in prod (no one gains or loses Pro); dev and previews are untouched. Turn it on again once fixed. Failed deliveries stay in the endpoint's message log; resend them from there.
